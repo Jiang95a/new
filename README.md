@@ -12,6 +12,7 @@ outputs/     团队综合开发文档、OpenAPI、SQL 和环境变量模板
 
 ## 文档入口
 
+- [前端开发流程](./docs/frontend-development-flow.md)
 - [团队综合开发文档](./outputs/团队综合开发文档.md)
 - [OpenAPI 契约](./outputs/api/openapi.yaml)
 - [PostgreSQL 初始化 SQL](./outputs/sql/001_init.sql)
