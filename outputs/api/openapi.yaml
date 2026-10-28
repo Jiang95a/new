@@ -1,0 +1,1333 @@
+openapi: 3.1.0
+info:
+  title: 校园轻活动 AI DIY 工坊 API
+  version: 1.0.0
+  description: |
+    V1 核心 REST API 契约。所有组织者业务接口使用 Bearer JWT；
+    公共活动读取和表单提交接口无需组织者登录。
+    页面内容统一使用 PageDocument，AI 只返回 Proposal，用户确认后才能应用。
+servers:
+  - url: http://localhost:8000/api/v1
+    description: Local
+  - url: https://api.example.com/api/v1
+    description: Production
+tags:
+  - name: Auth
+  - name: Templates
+  - name: Projects
+  - name: Draft
+  - name: Versions
+  - name: Publishing
+  - name: Public Activities
+  - name: Submissions
+  - name: AI
+
+paths:
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: 注册
+      operationId: register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "201":
+          description: Registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: 登录
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: 刷新访问令牌
+      operationId: refreshToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken:
+                  type: string
+      responses:
+        "200":
+          description: Refreshed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: 当前用户
+      operationId: getCurrentUser
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: "#/components/schemas/User"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /templates:
+    get:
+      tags: [Templates]
+      summary: 模板列表
+      operationId: listTemplates
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+            enum: [recruitment, registration, vote, checkin]
+      responses:
+        "200":
+          description: Templates
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Template"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects:
+    get:
+      tags: [Projects]
+      summary: 项目列表
+      operationId: listProjects
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/ProjectStatus"
+      responses:
+        "200":
+          description: Projects
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, pagination]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Project"
+                  pagination:
+                    $ref: "#/components/schemas/Pagination"
+        default:
+          $ref: "#/components/responses/Error"
+    post:
+      tags: [Projects]
+      summary: 创建项目
+      operationId: createProject
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title]
+              properties:
+                title:
+                  type: string
+                  minLength: 1
+                  maxLength: 160
+                description:
+                  type: [string, "null"]
+                  maxLength: 2000
+                templateId:
+                  type: [string, "null"]
+                  format: uuid
+                initialDocument:
+                  oneOf:
+                    - $ref: "#/components/schemas/PageDocument"
+                    - type: "null"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Project"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{projectId}:
+    parameters:
+      - $ref: "#/components/parameters/ProjectId"
+    get:
+      tags: [Projects]
+      summary: 项目详情
+      operationId: getProject
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Project
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Project"
+        default:
+          $ref: "#/components/responses/Error"
+    patch:
+      tags: [Projects]
+      summary: 修改项目标题或描述
+      operationId: updateProject
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              minProperties: 1
+              additionalProperties: false
+              properties:
+                title:
+                  type: string
+                  minLength: 1
+                  maxLength: 160
+                description:
+                  type: [string, "null"]
+                  maxLength: 2000
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Project"
+        default:
+          $ref: "#/components/responses/Error"
+    delete:
+      tags: [Projects]
+      summary: 软删除项目
+      operationId: deleteProject
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Deleted
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{projectId}/duplicate:
+    post:
+      tags: [Projects]
+      summary: 复制项目
+      operationId: duplicateProject
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title]
+              properties:
+                title:
+                  type: string
+                  maxLength: 160
+      responses:
+        "201":
+          description: Duplicated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Project"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{projectId}/draft:
+    parameters:
+      - $ref: "#/components/parameters/ProjectId"
+    get:
+      tags: [Draft]
+      summary: 获取当前草稿
+      operationId: getDraft
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Draft
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [revision, document, updatedAt]
+                    properties:
+                      revision:
+                        type: integer
+                        minimum: 0
+                      document:
+                        $ref: "#/components/schemas/PageDocument"
+                      updatedAt:
+                        type: string
+                        format: date-time
+        default:
+          $ref: "#/components/responses/Error"
+    put:
+      tags: [Draft]
+      summary: 覆盖保存草稿
+      operationId: saveDraft
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [baseRevision, document]
+              properties:
+                baseRevision:
+                  type: integer
+                  minimum: 0
+                document:
+                  $ref: "#/components/schemas/PageDocument"
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    required: [revision, savedAt]
+                    properties:
+                      revision:
+                        type: integer
+                      savedAt:
+                        type: string
+                        format: date-time
+        "409":
+          description: Revision conflict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{projectId}/versions:
+    parameters:
+      - $ref: "#/components/parameters/ProjectId"
+    get:
+      tags: [Versions]
+      summary: 版本列表
+      operationId: listVersions
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Versions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/PageVersionSummary"
+        default:
+          $ref: "#/components/responses/Error"
+    post:
+      tags: [Versions]
+      summary: 将当前草稿保存为不可变版本
+      operationId: createVersion
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [baseRevision]
+              properties:
+                baseRevision:
+                  type: integer
+                  minimum: 0
+                source:
+                  type: string
+                  enum: [manual, ai]
+                  default: manual
+      responses:
+        "201":
+          description: Version created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/PageVersionSummary"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{projectId}/publish:
+    post:
+      tags: [Publishing]
+      summary: 发布指定版本
+      operationId: publishProject
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [versionId]
+              properties:
+                versionId:
+                  type: string
+                  format: uuid
+                slug:
+                  type: [string, "null"]
+                  pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+                  minLength: 3
+                  maxLength: 80
+      responses:
+        "200":
+          description: Published
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/PublishResult"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{projectId}/unpublish:
+    post:
+      tags: [Publishing]
+      summary: 下线活动
+      operationId: unpublishProject
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "204":
+          description: Unpublished
+        default:
+          $ref: "#/components/responses/Error"
+
+  /public/activities/{slug}:
+    get:
+      tags: [Public Activities]
+      summary: 获取已发布活动
+      operationId: getPublicActivity
+      parameters:
+        - $ref: "#/components/parameters/Slug"
+      responses:
+        "200":
+          description: Published activity
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [slug, title, document, status]
+                    properties:
+                      slug:
+                        type: string
+                      title:
+                        type: string
+                      status:
+                        type: string
+                        enum: [published, closed, full, unpublished]
+                      document:
+                        $ref: "#/components/schemas/PageDocument"
+                      publishSettings:
+                        $ref: "#/components/schemas/PublishSettings"
+        "404":
+          description: Activity not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /public/activities/{slug}/submissions:
+    post:
+      tags: [Public Activities]
+      summary: 提交活动表单
+      operationId: createSubmission
+      parameters:
+        - $ref: "#/components/parameters/Slug"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [pageId, formComponentId, answers]
+              properties:
+                pageId:
+                  type: string
+                  maxLength: 80
+                formComponentId:
+                  type: string
+                  maxLength: 80
+                answers:
+                  type: object
+                  additionalProperties: true
+                idempotencyKey:
+                  type: string
+                  format: uuid
+      responses:
+        "201":
+          description: Submitted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    required: [submissionId, status]
+                    properties:
+                      submissionId:
+                        type: string
+                        format: uuid
+                      status:
+                        type: string
+                        enum: [valid]
+                      submittedAt:
+                        type: string
+                        format: date-time
+        "409":
+          description: Activity closed, full, or duplicate submission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "422":
+          description: Form validation failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{projectId}/submissions:
+    get:
+      tags: [Submissions]
+      summary: 组织者查看提交列表
+      operationId: listSubmissions
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [valid, invalid]
+      responses:
+        "200":
+          description: Submissions
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, pagination]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Submission"
+                  pagination:
+                    $ref: "#/components/schemas/Pagination"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{projectId}/exports:
+    post:
+      tags: [Submissions]
+      summary: 创建 CSV 导出任务
+      operationId: createExport
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [valid, invalid]
+                submittedAfter:
+                  type: string
+                  format: date-time
+                submittedBefore:
+                  type: string
+                  format: date-time
+      responses:
+        "202":
+          description: Export queued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    required: [exportId, status]
+                    properties:
+                      exportId:
+                        type: string
+                        format: uuid
+                      status:
+                        type: string
+                        enum: [queued]
+        default:
+          $ref: "#/components/responses/Error"
+
+  /exports/{exportId}:
+    get:
+      tags: [Submissions]
+      summary: 查询导出任务
+      operationId: getExport
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: exportId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Export status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    required: [exportId, status]
+                    properties:
+                      exportId:
+                        type: string
+                        format: uuid
+                      status:
+                        type: string
+                        enum: [queued, running, succeeded, failed, expired]
+                      downloadUrl:
+                        type: [string, "null"]
+                        format: uri
+                      expiresAt:
+                        type: [string, "null"]
+                        format: date-time
+        default:
+          $ref: "#/components/responses/Error"
+
+  /ai/jobs:
+    post:
+      tags: [AI]
+      summary: 创建 AI 任务
+      operationId: createAiJob
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAiJobRequest"
+      responses:
+        "202":
+          description: Job queued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    required: [jobId, status]
+                    properties:
+                      jobId:
+                        type: string
+                        format: uuid
+                      status:
+                        type: string
+                        enum: [queued]
+        default:
+          $ref: "#/components/responses/Error"
+
+  /ai/jobs/{jobId}:
+    get:
+      tags: [AI]
+      summary: 查询 AI 任务
+      operationId: getAiJob
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: AI job
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/AiJob"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /ai/proposals/{proposalId}/apply:
+    post:
+      tags: [AI]
+      summary: 应用 AI 提案
+      operationId: applyAiProposal
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: proposalId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [baseRevision]
+              properties:
+                baseRevision:
+                  type: integer
+                  minimum: 0
+      responses:
+        "200":
+          description: Applied
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    required: [revision, document]
+                    properties:
+                      revision:
+                        type: integer
+                      document:
+                        $ref: "#/components/schemas/PageDocument"
+        "409":
+          description: Proposal is stale or project changed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          $ref: "#/components/responses/Error"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    ProjectId:
+      name: projectId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    Slug:
+      name: slug
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 3
+        maxLength: 80
+
+  responses:
+    Error:
+      description: Error response
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+  schemas:
+    Pagination:
+      type: object
+      required: [page, pageSize, total]
+      properties:
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            details:
+              type: object
+              additionalProperties: true
+        requestId:
+          type: string
+
+    User:
+      type: object
+      required: [id, email, displayName, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        displayName:
+          type: string
+        status:
+          type: string
+          enum: [active, disabled]
+
+    RegisterRequest:
+      type: object
+      required: [email, password, displayName]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+          maxLength: 128
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 80
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+
+    AuthResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [accessToken, refreshToken, user]
+          properties:
+            accessToken:
+              type: string
+            refreshToken:
+              type: string
+            user:
+              $ref: "#/components/schemas/User"
+
+    Template:
+      type: object
+      required: [id, code, name, category]
+      properties:
+        id:
+          type: string
+          format: uuid
+        code:
+          type: string
+        name:
+          type: string
+        category:
+          type: string
+          enum: [recruitment, registration, vote, checkin]
+        coverUrl:
+          type: [string, "null"]
+          format: uri
+        document:
+          $ref: "#/components/schemas/PageDocument"
+
+    ProjectStatus:
+      type: string
+      enum: [draft, published, unpublished, archived]
+
+    Project:
+      type: object
+      required:
+        - id
+        - title
+        - status
+        - draftRevision
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: [string, "null"]
+        status:
+          $ref: "#/components/schemas/ProjectStatus"
+        draftRevision:
+          type: integer
+        publicSlug:
+          type: [string, "null"]
+        publicUrl:
+          type: [string, "null"]
+          format: uri
+        publishedVersionId:
+          type: [string, "null"]
+          format: uuid
+        submissionCount:
+          type: integer
+          minimum: 0
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Theme:
+      type: object
+      required: [primaryColor, backgroundColor, textColor, radius, fontScale]
+      properties:
+        primaryColor:
+          type: string
+          pattern: "^#[0-9A-Fa-f]{6}$"
+        backgroundColor:
+          type: string
+          pattern: "^#[0-9A-Fa-f]{6}$"
+        textColor:
+          type: string
+          pattern: "^#[0-9A-Fa-f]{6}$"
+        radius:
+          type: integer
+          minimum: 0
+          maximum: 32
+        fontScale:
+          type: number
+          minimum: 0.8
+          maximum: 1.4
+
+    PageDocument:
+      type: object
+      required: [schemaVersion, title, homePageId, theme, pages]
+      properties:
+        schemaVersion:
+          type: string
+          const: "1.0"
+        title:
+          type: string
+          minLength: 1
+          maxLength: 160
+        homePageId:
+          type: string
+        theme:
+          $ref: "#/components/schemas/Theme"
+        pages:
+          type: array
+          minItems: 1
+          maxItems: 10
+          items:
+            $ref: "#/components/schemas/Page"
+
+    Page:
+      type: object
+      required: [id, title, path, components]
+      properties:
+        id:
+          type: string
+          minLength: 1
+          maxLength: 80
+        title:
+          type: string
+          maxLength: 120
+        path:
+          type: string
+          pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          maxLength: 80
+        components:
+          type: array
+          maxItems: 80
+          items:
+            $ref: "#/components/schemas/PageComponent"
+
+    PageComponent:
+      type: object
+      required: [id, type, props]
+      properties:
+        id:
+          type: string
+          minLength: 1
+          maxLength: 80
+        type:
+          type: string
+          enum:
+            - navbar
+            - banner
+            - heading
+            - text
+            - image
+            - info_card
+            - button
+            - form
+            - radio_group
+            - checkbox_group
+            - qr_code
+            - divider
+            - success_panel
+        props:
+          type: object
+          additionalProperties: true
+
+    PageVersionSummary:
+      type: object
+      required: [id, versionNo, source, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        versionNo:
+          type: integer
+          minimum: 1
+        source:
+          type: string
+          enum: [manual, ai, template]
+        createdAt:
+          type: string
+          format: date-time
+
+    PublishSettings:
+      type: object
+      properties:
+        opensAt:
+          type: [string, "null"]
+          format: date-time
+        closesAt:
+          type: [string, "null"]
+          format: date-time
+        maxSubmissions:
+          type: [integer, "null"]
+          minimum: 1
+        allowDuplicateSubmissions:
+          type: boolean
+          default: false
+
+    PublishResult:
+      type: object
+      required: [publicSlug, publicUrl, publishedVersionId, publishedAt]
+      properties:
+        publicSlug:
+          type: string
+        publicUrl:
+          type: string
+          format: uri
+        publishedVersionId:
+          type: string
+          format: uuid
+        publishedAt:
+          type: string
+          format: date-time
+
+    Submission:
+      type: object
+      required: [id, pageId, formComponentId, answers, status, submittedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        pageId:
+          type: string
+        formComponentId:
+          type: string
+        answers:
+          type: object
+          additionalProperties: true
+        status:
+          type: string
+          enum: [valid, invalid]
+        submittedAt:
+          type: string
+          format: date-time
+
+    CreateAiJobRequest:
+      type: object
+      required: [kind, projectId]
+      properties:
+        kind:
+          type: string
+          enum:
+            - generate_from_prompt
+            - generate_from_poster
+            - component_suggestions
+            - quality_check
+        projectId:
+          type: string
+          format: uuid
+        prompt:
+          type: [string, "null"]
+          maxLength: 4000
+        assetIds:
+          type: array
+          maxItems: 3
+          items:
+            type: string
+            format: uuid
+        selectedComponentId:
+          type: [string, "null"]
+        selectedPageId:
+          type: [string, "null"]
+        baseRevision:
+          type: [integer, "null"]
+          minimum: 0
+        clientRequestId:
+          type: [string, "null"]
+          maxLength: 100
+
+    AiJob:
+      type: object
+      required: [id, kind, status, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        kind:
+          type: string
+          enum:
+            - generate_from_prompt
+            - generate_from_poster
+            - component_suggestions
+            - quality_check
+        status:
+          type: string
+          enum: [queued, running, succeeded, failed, cancelled]
+        proposals:
+          type: array
+          items:
+            $ref: "#/components/schemas/AiProposal"
+        error:
+          oneOf:
+            - $ref: "#/components/schemas/Error"
+            - type: "null"
+        createdAt:
+          type: string
+          format: date-time
+        finishedAt:
+          type: [string, "null"]
+          format: date-time
+
+    AiProposal:
+      type: object
+      required:
+        - id
+        - baseRevision
+        - target
+        - summary
+        - operations
+        - rationale
+        - risk
+        - status
+      properties:
+        id:
+          type: string
+          format: uuid
+        baseRevision:
+          type: integer
+          minimum: 0
+        target:
+          type: object
+          properties:
+            pageId:
+              type: [string, "null"]
+            componentId:
+              type: [string, "null"]
+        summary:
+          type: string
+        candidateDocument:
+          oneOf:
+            - $ref: "#/components/schemas/PageDocument"
+            - type: "null"
+        operations:
+          type: array
+          items:
+            type: object
+            required: [tool, arguments]
+            properties:
+              tool:
+                type: string
+                enum:
+                  - insert_component
+                  - update_component
+                  - move_component
+                  - remove_component
+                  - update_page
+                  - apply_theme
+                  - set_navigation
+                  - report_issue
+              arguments:
+                type: object
+                additionalProperties: true
+        rationale:
+          type: array
+          items:
+            type: string
+        risk:
+          type: string
+          enum: [low, medium, high]
+        status:
+          type: string
+          enum: [proposed, applied, rejected, stale]
+

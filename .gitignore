@@ -4,28 +4,38 @@ node_modules/
 # Next.js build output
 .next/
 out/
+*.tsbuildinfo
+.turbo/
+.eslintcache
 
-# Environment files
+# Environment and secrets
 .env
 .env.*
 !.env.example
 
-# Generated archives
-*.zip
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
-# Logs and caches
+# Local data and generated files
+data/
+*.db
+*.db-journal
+*.zip
 *.log
-.eslintcache
-*.tsbuildinfo
-.turbo/
 
 # OS / editor
 .DS_Store
 Thumbs.db
 .idea/
 .vscode/
+*.swp
 
-# Local scratch area (not part of the deliverable)
+# Local scratch area
 work/
-
-
