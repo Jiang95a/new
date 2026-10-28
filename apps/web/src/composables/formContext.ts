@@ -1,0 +1,14 @@
+import type { InjectionKey } from 'vue'
+
+/**
+ * 预览态的表单上下文：答案 + 校验错误由 PhoneScreen 统一持有，
+ * 各个表单组件只负责读写，避免十来层 prop 透传。
+ */
+export interface FormContext {
+  answers: Record<string, string | string[]>
+  errors: Record<string, boolean>
+  setAnswer: (key: string, value: string | string[]) => void
+  clearError: (key: string) => void
+}
+
+export const FORM_CONTEXT: InjectionKey<FormContext> = Symbol('form-context')

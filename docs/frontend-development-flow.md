@@ -18,7 +18,7 @@
 
 | 工具 | 要求 |
 |---|---|
-| Node.js | 20 或更高 |
+| Node.js | 22.18 或更高，推荐 24 |
 | pnpm | 10 或更高 |
 | Git | 最新稳定版 |
 | VSCode | 最新稳定版 |
@@ -57,11 +57,11 @@ VSCode 会根据 `.vscode/extensions.json` 提示安装：
 
 ```bash
 cd apps/web
-pnpm install
-pnpm dev
+corepack pnpm install
+corepack pnpm dev
 ```
 
-浏览器访问 `http://localhost:3000`。
+浏览器访问 `http://localhost:5173`。
 
 VSCode 也可以通过 `Terminal -> Run Task` 运行：
 
@@ -74,7 +74,7 @@ VSCode 也可以通过 `Terminal -> Run Task` 运行：
 快捷键：
 
 - `Ctrl + Shift + B`：执行默认构建任务。
-- `F5`：启动 Next.js 调试配置。
+- `F5`：启动 Vue/Vite 调试配置。
 
 ## 4. 每日开发流程
 
@@ -104,7 +104,7 @@ pnpm typecheck
 pnpm build
 ```
 
-当前沙箱环境可能无法启动 Next.js 子进程，构建以本机终端结果为准。
+当前沙箱环境可能无法启动 Vite 子进程，构建以本机终端结果为准。
 
 ### 中文提交格式
 
@@ -206,15 +206,17 @@ chore: 更新前端依赖
 
 ```text
 apps/web/
-├── app/                 Next.js 路由和页面
-├── components/          编辑器和公共组件
-├── lib/                 类型、API Client、校验和工具
-├── stores/              编辑器状态
-├── public/              静态资源
-└── tests/               前端测试
+├── src/views/WorkshopView.vue        编辑器主页面
+├── src/components/editor/           画布、页面、组件库和属性面板
+├── src/components/modals/           创建、预览、发布和质量检查
+├── src/stores/editor.ts             PageDocument、页面和撤销状态
+├── src/types/editor.ts              Doc / PageDocument / Page / Block 类型
+├── src/services/                    智能体、质量检查、导出和海报
+├── src/data/                        模板和组件目录
+├── src/router/                      Vue Router
+├── src/assets/main.css              全局样式
+└── public/                          静态资源
 ```
-
-计划逐步增加 `components/`、`stores/` 和 `tests/`，不要在第一步一次性生成空目录。
 
 ## 7. 当前下一步
 

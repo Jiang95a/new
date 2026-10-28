@@ -4,7 +4,8 @@
     {
       "label": "前端: 安装依赖",
       "type": "shell",
-      "command": "pnpm install",
+      "command": "corepack",
+      "args": ["pnpm", "install"],
       "options": {
         "cwd": "${workspaceFolder}/apps/web"
       },
@@ -13,7 +14,8 @@
     {
       "label": "前端: 启动开发服务器",
       "type": "shell",
-      "command": "pnpm dev",
+      "command": "corepack",
+      "args": ["pnpm", "dev"],
       "options": {
         "cwd": "${workspaceFolder}/apps/web"
       },
@@ -22,7 +24,8 @@
     {
       "label": "前端: 类型检查",
       "type": "shell",
-      "command": "pnpm typecheck",
+      "command": "corepack",
+      "args": ["pnpm", "typecheck"],
       "options": {
         "cwd": "${workspaceFolder}/apps/web"
       },
@@ -32,7 +35,8 @@
     {
       "label": "前端: 格式检查",
       "type": "shell",
-      "command": "pnpm format:check",
+      "command": "corepack",
+      "args": ["pnpm", "format:check"],
       "options": {
         "cwd": "${workspaceFolder}/apps/web"
       },
@@ -42,7 +46,8 @@
     {
       "label": "前端: 构建",
       "type": "shell",
-      "command": "pnpm build",
+      "command": "corepack",
+      "args": ["pnpm", "build"],
       "options": {
         "cwd": "${workspaceFolder}/apps/web"
       },
@@ -53,7 +58,7 @@
       "problemMatcher": []
     },
     {
-      "label": "项目: 提交并推送前端第一步",
+      "label": "项目: 提交并推送当前前端改动",
       "type": "shell",
       "command": "powershell.exe",
       "args": [

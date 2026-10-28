@@ -1,9 +1,11 @@
 # Dependencies
 node_modules/
 
-# Next.js build output
+# Frontend build output
 .next/
 out/
+dist/
+coverage/
 *.tsbuildinfo
 .turbo/
 .eslintcache

@@ -5,7 +5,7 @@
 ## 项目结构
 
 ```text
-apps/web/    Next.js 前端：电脑端工作台与移动端公开活动页
+apps/web/    Vue 3 + Vite 前端：多页面 PageDocument 编辑器与实时预览
 agent_first/ FastAPI 智能体服务
 outputs/     团队综合开发文档、OpenAPI、SQL 和环境变量模板
 ```
@@ -20,13 +20,14 @@ outputs/     团队综合开发文档、OpenAPI、SQL 和环境变量模板
 
 ## 当前进度
 
-- 前端第一步：Next.js App Router 工程骨架，包含首页、项目工作台和公开活动页占位路由。
+- 前端已迁移为 Vue 3 + Vite + TypeScript + Pinia。
+- 编辑器支持多页面 PageDocument、13 类受控组件、属性修改、实时画布预览、撤销重做、本地保存、发布二维码和静态页导出。
 - 智能体第一步：完成 FastAPI 智能体基础目录、聊天路由、服务层、记忆和工具模块的初始结构。
 
 ## 前端本地运行
 
 ```bash
 cd apps/web
-pnpm install
-pnpm dev
+corepack pnpm install
+corepack pnpm dev
 ```
