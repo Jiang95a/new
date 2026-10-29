@@ -15,7 +15,7 @@
 const STORAGE_KEY = 'diy-campus:agent-base'
 const DEFAULT_BASE = (import.meta.env.VITE_AGENT_BASE_URL as string | undefined) ?? 'http://127.0.0.1:8000'
 
-export type AgentErrorCode = 'OFFLINE' | 'NOT_CONFIGURED' | 'FORMAT' | 'FAILED'
+export type AgentErrorCode = 'OFFLINE' | 'NOT_CONFIGURED' | 'FORMAT' | 'IMAGE' | 'FAILED'
 
 export class AgentError extends Error {
   code: AgentErrorCode
@@ -46,6 +46,10 @@ export interface AgentReply {
   reply: string
   latencyMs: number
   toolCalls: AgentToolCall[]
+  /** 本次带进提示词的知识库资料条数（0 表示没命中，模型只靠常识回答） */
+  ragHits: number
+  /** 命中的护栏规则，例如 system_extra_blocked：说明这轮附加要求被拦了 */
+  flags: string[]
 }
 
 export function getAgentBase(): string {
@@ -133,6 +137,8 @@ export async function askAgent(
     reply?: string
     latency_ms?: number
     tool_calls?: { name?: string; result?: string }[]
+    rag_hits?: number
+    flags?: string[]
   }>(
     '/chat',
     {
@@ -151,6 +157,8 @@ export async function askAgent(
       name: item.name ?? '',
       result: item.result ?? '',
     })),
+    ragHits: data.rag_hits ?? 0,
+    flags: data.flags ?? [],
   }
 }
 
@@ -192,3 +200,100 @@ export function extractJson(text: string): unknown | null {
 
 export const PLAN_SYSTEM_EXTRA =
   '本次请求只输出 JSON 对象，不要任何解释、不要 markdown 代码块。JSON 必须符合调用方给出的结构。'
+
+/* ------------------------------------------------------------------------- */
+/* 多模态：海报 -> 结构化活动信息                                               */
+/* ------------------------------------------------------------------------- */
+
+export interface PosterInfo {
+  title: string
+  org: string
+  startAt: string
+  place: string
+  deadline: string
+  capacity: number | null
+  fee: string
+  contact: string
+  intro: string
+  signupFields: string[]
+  /** 字段 -> 它在海报上的原文，用来让用户逐项核对，而不是盲信 AI */
+  evidence: Record<string, string>
+  /** 看得到但读不清的字段 */
+  unclear: string[]
+  confidence: number
+}
+
+export interface PosterExtractResult {
+  info: PosterInfo
+  warnings: string[]
+  model: string
+  latencyMs: number
+}
+
+/**
+ * 把一张海报（data URL）发给智能体的视觉能力，换回结构化字段。
+ *
+ * 三种失败要分开处理，不能糊成一句"失败了"：
+ *   503 NOT_CONFIGURED —— 没配视觉模型：静默退回手动填写，别骚扰用户
+ *   422 IMAGE          —— 图不行：让用户换一张
+ *   502 FAILED         —— 模型今天不干活：提示稍后重试
+ *
+ * 后端保证：认不出的字段是空字符串，绝不编。前端只负责把空着的留给用户。
+ */
+export async function extractPoster(dataUrl: string, timeoutMs = 90000): Promise<PosterExtractResult> {
+  const controller = new AbortController()
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs)
+
+  let response: Response
+  try {
+    response = await fetch(`${getAgentBase()}/poster/extract`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dataUrl }),
+      signal: controller.signal,
+    })
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new AgentError('OFFLINE', '读图超时了，换张小一点的图试试')
+    }
+    throw new AgentError('OFFLINE', '连不上智能体服务')
+  } finally {
+    window.clearTimeout(timer)
+  }
+
+  let body: any = null
+  try {
+    body = await response.json()
+  } catch {
+    body = null
+  }
+
+  if (!response.ok) {
+    const message = body?.detail?.message ?? `读图失败（${response.status}）`
+    const code: AgentErrorCode =
+      response.status === 503 ? 'NOT_CONFIGURED' : response.status === 422 ? 'IMAGE' : 'FAILED'
+    throw new AgentError(code, message, response.status)
+  }
+
+  const info = (body?.info ?? {}) as PosterInfo
+  return {
+    info: {
+      title: info.title ?? '',
+      org: info.org ?? '',
+      startAt: info.startAt ?? '',
+      place: info.place ?? '',
+      deadline: info.deadline ?? '',
+      capacity: typeof info.capacity === 'number' ? info.capacity : null,
+      fee: info.fee ?? '',
+      contact: info.contact ?? '',
+      intro: info.intro ?? '',
+      signupFields: Array.isArray(info.signupFields) ? info.signupFields : [],
+      evidence: info.evidence && typeof info.evidence === 'object' ? info.evidence : {},
+      unclear: Array.isArray(info.unclear) ? info.unclear : [],
+      confidence: typeof info.confidence === 'number' ? info.confidence : 0,
+    },
+    warnings: Array.isArray(body?.warnings) ? body.warnings : [],
+    model: String(body?.model ?? ''),
+    latencyMs: Number(body?.latencyMs ?? 0),
+  }
+}

@@ -6,7 +6,7 @@ import Icon from '@/components/ui/Icon.vue'
 import { metaOf } from '@/data/blockCatalog'
 import { buildQuickDoc, createDocFromTemplate, newDocFromBuild, TEMPLATES } from '@/data/templates'
 import { buildPlanPrompt, localDoc, normalizePlan, parsePlanFromText, planToDoc } from '@/services/planner'
-import { askAgent, extractJson, PLAN_SYSTEM_EXTRA, probeAgent } from '@/services/agent'
+import { AgentError, askAgent, extractJson, extractPoster, PLAN_SYSTEM_EXTRA, probeAgent } from '@/services/agent'
 import { useEditorStore } from '@/stores/editor'
 import { useToast } from '@/composables/useToast'
 
@@ -51,10 +51,16 @@ watch(
   }
 )
 
-/* ------------------------------- 海报解析（演示） ------------------------------- */
+/* ------------------------------- 海报解析（多模态） ------------------------------- */
 
 const posterFile = ref<string>('')
 const posterName = ref('')
+const posterParsing = ref(false)
+/** 视觉能力没开（503）时不再反复重试，直接转手动填写 */
+const posterVisionOff = ref(false)
+const posterNotes = ref<string[]>([])
+const posterMeta = ref('')
+const posterEvidence = ref<{ label: string; original: string }[]>([])
 const posterForm = ref({
   title: '',
   org: '',
@@ -64,6 +70,18 @@ const posterForm = ref({
   capacity: 0,
   contact: '',
 })
+
+const EVIDENCE_LABEL: Record<string, string> = {
+  title: '活动名称',
+  org: '主办方',
+  startAt: '时间',
+  place: '地点',
+  deadline: '截止时间',
+  capacity: '名额',
+  fee: '费用',
+  contact: '联系方式',
+  intro: '宣传语',
+}
 
 async function compressPoster(file: File): Promise<string> {
   const dataUrl = await new Promise<string>((resolve, reject) => {
@@ -85,6 +103,67 @@ async function compressPoster(file: File): Promise<string> {
   canvas.height = Math.max(1, Math.round(image.height * scale))
   canvas.getContext('2d')?.drawImage(image, 0, 0, canvas.width, canvas.height)
   return canvas.toDataURL('image/jpeg', 0.82)
+}
+
+/**
+ * 让视觉模型先读一遍海报，把能认出来的字段填进表单。
+ *
+ * 三条原则写在这里，改代码的人别破坏：
+ * 1. 只覆盖**有值**的字段——模型没认出来就留用户原来填的，不拿空值冲掉数据。
+ * 2. 认不出的、把握不大的，一条条列在表单上方，不假装全都认得。
+ * 3. 视觉能力没开（503）就静默转手动，别弹一个看不懂的错误吓用户。
+ */
+async function recognizePoster(): Promise<void> {
+  if (!posterFile.value || posterParsing.value) return
+  posterParsing.value = true
+  posterNotes.value = []
+  posterMeta.value = ''
+  posterEvidence.value = []
+
+  try {
+    const result = await extractPoster(posterFile.value)
+    const info = result.info
+
+    let filled = 0
+    const apply = (key: keyof typeof posterForm.value, value: string | number | null): void => {
+      if (value === null || value === '' || value === undefined) return
+      ;(posterForm.value[key] as string | number) = value
+      filled += 1
+    }
+    apply('title', info.title)
+    apply('org', info.org)
+    apply('startAt', info.startAt)
+    apply('place', info.place)
+    apply('deadline', info.deadline)
+    apply('capacity', info.capacity)
+    apply('contact', info.contact)
+
+    const notes = [...result.warnings]
+    if (info.unclear.length) notes.push(`没读清：${info.unclear.join('、')}`)
+    if (info.signupFields.length) notes.push(`海报里提到要填：${info.signupFields.join('、')}`)
+    posterNotes.value = notes
+    posterMeta.value = `${result.model} · ${result.latencyMs}ms · 把握 ${Math.round(info.confidence * 100)}%`
+    posterEvidence.value = Object.entries(info.evidence)
+      .filter(([key]) => EVIDENCE_LABEL[key])
+      .slice(0, 6)
+      .map(([key, original]) => ({ label: EVIDENCE_LABEL[key] ?? key, original: String(original) }))
+
+    if (filled === 0) {
+      toast.pushToast('这张海报没读出可用信息，请手动填', 'warn')
+    } else {
+      toast.pushToast(`已从海报读出 ${filled} 项，请核对后生成`, 'success')
+    }
+  } catch (error) {
+    if (error instanceof AgentError && error.code === 'NOT_CONFIGURED') {
+      posterVisionOff.value = true
+    } else if (error instanceof AgentError && error.code === 'IMAGE') {
+      toast.pushToast(error.message, 'warn')
+    } else {
+      toast.pushToast(error instanceof Error ? error.message : '读图失败，先手动填吧', 'warn')
+    }
+  } finally {
+    posterParsing.value = false
+  }
 }
 
 async function onPosterPick(event: Event): Promise<void> {
@@ -109,6 +188,7 @@ async function onPosterPick(event: Event): Promise<void> {
   posterName.value = file.name
   posterForm.value.title = store.doc.title
   posterForm.value.org = store.doc.meta.org
+  void recognizePoster()
 }
 
 /* ------------------------------- AI 生成 ------------------------------- */
@@ -348,10 +428,33 @@ const FORM_FIELDS: { key: PosterTextKey; label: string; placeholder: string }[] 
         </div>
 
         <div class="poster-tab__form">
-          <p class="poster-tab__note">
-            <Icon name="info" :size="12" />
-            暂未接入 OCR：图片会作为首页 Banner，下面的字段请手动核对后生成。
+          <p v-if="posterParsing" class="poster-tab__note poster-tab__note--busy">
+            <Icon name="wand" :size="12" />
+            正在读海报里的活动信息…
           </p>
+          <p v-else-if="posterVisionOff" class="poster-tab__note">
+            <Icon name="info" :size="12" />
+            读图功能没开（智能体没配视觉模型），下面的字段请手动填写。
+          </p>
+          <p v-else class="poster-tab__note poster-tab__note--ok">
+            <Icon name="wand" :size="12" />
+            AI 会先读海报预填字段；认不出来的留空，不会瞎编。填完请核对。
+          </p>
+
+          <ul v-if="posterNotes.length" class="poster-tab__notes">
+            <li v-for="note in posterNotes" :key="note">{{ note }}</li>
+          </ul>
+
+          <details v-if="posterEvidence.length" class="poster-tab__evidence">
+            <summary>看 AI 是从海报哪句话读出来的</summary>
+            <ul>
+              <li v-for="item in posterEvidence" :key="item.label">
+                <span>{{ item.label }}</span>
+                <em>「{{ item.original }}」</em>
+              </li>
+            </ul>
+          </details>
+
           <label v-for="field in FORM_FIELDS" :key="field.key" class="field">
             <span class="field__label">{{ field.label }}</span>
             <input v-model="posterForm[field.key]" class="input" :placeholder="field.placeholder" />
@@ -361,6 +464,7 @@ const FORM_FIELDS: { key: PosterTextKey; label: string; placeholder: string }[] 
             <input v-model.number="posterForm.capacity" class="input" type="number" min="0" />
           </label>
           <button type="button" class="btn btn--primary btn--block" @click="applyPoster">用这些信息生成页面</button>
+          <p v-if="posterMeta" class="hint">{{ posterMeta }}</p>
           <p v-if="posterName" class="hint">已选择：{{ posterName }}</p>
         </div>
       </section>
@@ -703,6 +807,60 @@ const FORM_FIELDS: { key: PosterTextKey; label: string; placeholder: string }[] 
   color: #b45309;
   font-size: 11px;
   line-height: 1.6;
+}
+
+.poster-tab__note--ok {
+  background: var(--brand-50);
+  color: var(--brand-700, #3730a3);
+}
+
+.poster-tab__note--busy {
+  background: var(--brand-50);
+  color: var(--brand-700, #3730a3);
+}
+
+.poster-tab__notes {
+  margin: 0;
+  padding: 0 0 0 16px;
+  font-size: 11px;
+  line-height: 1.7;
+  color: #b45309;
+}
+
+.poster-tab__evidence {
+  font-size: 11px;
+  color: var(--ink-500);
+  background: var(--ink-50);
+  border-radius: 9px;
+  padding: 7px 10px;
+}
+
+.poster-tab__evidence summary {
+  cursor: pointer;
+  color: var(--ink-600);
+}
+
+.poster-tab__evidence ul {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.poster-tab__evidence li {
+  display: flex;
+  gap: 6px;
+  padding: 2px 0;
+  line-height: 1.6;
+}
+
+.poster-tab__evidence li span {
+  flex: 0 0 56px;
+  color: var(--ink-400);
+}
+
+.poster-tab__evidence li em {
+  font-style: normal;
+  color: var(--ink-700);
 }
 
 @media (max-width: 860px) {

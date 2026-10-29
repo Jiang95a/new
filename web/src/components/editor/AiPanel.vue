@@ -111,7 +111,15 @@ async function send(text?: string): Promise<void> {
         threadId: threadId.value || undefined,
       })
       if (reply.threadId) threadId.value = reply.threadId
-      pushMessage('assistant', reply.reply || '（这次没拿到回复，再问一次试试）', `智能体 · ${reply.latencyMs}ms`)
+
+      // 把「这轮到底发生了什么」摊开给用户看：带了几条资料、调了什么工具、有没有被护栏拦。
+      // 这不是炫技——AI 建议要能解释，用户才敢点「应用」。
+      const bits = ['智能体', `${reply.latencyMs}ms`]
+      if (reply.ragHits > 0) bits.push(`资料 ${reply.ragHits} 条`)
+      if (reply.toolCalls.length) bits.push(reply.toolCalls.map((call) => call.name).join(' / '))
+      if (reply.flags.includes('system_extra_blocked')) bits.push('附加要求已拦截')
+
+      pushMessage('assistant', reply.reply || '（这次没拿到回复，再问一次试试）', bits.join(' · '))
     } catch (error) {
       status.value = 'offline'
       const reason = error instanceof AgentError ? error.message : '智能体调用失败'
