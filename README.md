@@ -7,14 +7,17 @@
 | 目录 | 是什么 | 技术栈 | 端口 |
 |---|---|---|---|
 | `web/` | 前端编辑器（多页面 PageDocument 编辑与实时预览） | Vue 3 + Vite + TypeScript + Pinia | 5173 |
-| `server/` | 后端 API（待搭建） | 待定 | 8080 |
+| `server/` | 后端 API（待搭建） | 待定 + **MySQL 8** | 8080 |
 | `agent/` | 智能体服务 | FastAPI + LangChain / LangGraph | 8000 |
 
 `docs/` 是三边共用的资料，不是谁的私有目录：
 
 - [`团队综合开发文档`](./docs/团队综合开发文档.md) — 总体方案
 - [`OpenAPI 契约`](./docs/api/openapi.yaml) — **改接口先改它**
-- [`初始化 SQL`](./docs/sql/001_init.sql) — 数据库建表
+- [`MySQL 建库脚本`](./docs/sql/00_create_database.sql) — 建库 + 建专用账号（root 执行）
+- [`初始化 SQL（MySQL 8）`](./docs/sql/001_init.sql) — 9 张表，可重复执行
+- [`演示数据`](./docs/sql/002_seed.sql) — 演示用户 / 模板 / 项目，后端第一天就能跑通
+- [`MySQL 五步上手`](./docs/mysql-快速开始.md) — 装到验证，十分钟
 - [`环境变量模板`](./docs/.env.example) — 复制成本地 `.env`
 - [`前端开发流程`](./docs/frontend-development-flow.md)
 - `docs/finish-step1.ps1` — 第一步环境脚本（历史脚本，备查）
