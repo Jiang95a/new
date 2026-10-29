@@ -4,22 +4,43 @@ import { RouterLink, useRouter } from 'vue-router'
 import WorkspaceShell from '@/components/studio/WorkspaceShell.vue'
 import Icon from '@/components/ui/Icon.vue'
 import { TEMPLATES } from '@/data/templates'
-import { useEditorStore } from '@/stores/editor'
+import { useProjectStore } from '@/stores/projects'
 
 const router = useRouter()
-const store = useEditorStore()
+const projectStore = useProjectStore()
 const selectedTemplate = ref('recruit')
+const title = ref('摄影社 2026 秋季招新')
+const org = ref('光影摄影社')
 const prompt = ref(
   '做一个摄影社秋季招新页面，需要社团介绍、三个部门、活动照片、报名表和负责人联系方式。整体风格温暖、有胶片感。'
 )
 
+let pendingProjectId = ''
+
+function ensureProject() {
+  if (pendingProjectId) {
+    const existing = projectStore.getById(pendingProjectId)
+    if (existing) return existing
+  }
+  const template = TEMPLATES.find((item) => item.id === selectedTemplate.value)
+  const project = projectStore.createProject({
+    title: title.value,
+    org: org.value,
+    type: template?.name || '校园活动',
+    templateId: selectedTemplate.value,
+  })
+  pendingProjectId = project.id
+  return project
+}
+
 function startWithTemplate(): void {
-  store.useTemplate(selectedTemplate.value)
-  router.push('/editor/demo')
+  const project = ensureProject()
+  router.push(`/editor/${project.id}`)
 }
 
 function openCreate(tab: 'ai' | 'poster'): void {
-  router.push({ path: '/editor/demo', query: { create: tab } })
+  const project = ensureProject()
+  router.push({ path: `/editor/${project.id}`, query: { create: tab } })
 }
 
 function templateTone(id: string): string {
@@ -54,16 +75,11 @@ function templateTone(id: string): string {
           </div>
           <label class="field">
             <span>活动名称</span>
-            <input :value="store.doc.title" @input="store.updateTitle(($event.target as HTMLInputElement).value)" />
+            <input v-model="title" />
             <small>页面顶部和分享卡片都会使用这个名称。</small>
           </label>
           <div class="field-row">
-            <label class="field"
-              ><span>组织者</span
-              ><input
-                :value="store.doc.meta.org"
-                @input="store.updateMeta({ org: ($event.target as HTMLInputElement).value })"
-            /></label>
+            <label class="field"><span>组织者</span><input v-model="org" /></label>
             <label class="field"
               ><span>活动类型</span
               ><select>

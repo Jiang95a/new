@@ -113,8 +113,8 @@ async function downloadPoster(): Promise<void> {
 
         <p class="pub__note">
           <Icon name="info" :size="12" />
-          当前是纯前端演示：链接指向本地地址（<code>#preview=</code>
-          会直接打开参与者预览）， 二维码扫出来的也是这个地址。接上后端后，把这里换成真实短链即可，其余逻辑不用动。
+          当前是纯前端演示：链接指向本地公开活动页
+          <code>/p/:slug</code>，二维码使用同一地址。接上后端后，把这个地址替换为正式公开域名即可。
         </p>
       </template>
     </div>

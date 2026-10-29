@@ -1,68 +1,123 @@
 <script setup lang="ts">
-import { RouterLink } from 'vue-router'
+import { computed, ref } from 'vue'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import WorkspaceShell from '@/components/studio/WorkspaceShell.vue'
 import Icon from '@/components/ui/Icon.vue'
-import { useEditorStore } from '@/stores/editor'
+import { useProjectStore, type ProjectStatus } from '@/stores/projects'
 
-const store = useEditorStore()
+const projectStore = useProjectStore()
+const route = useRoute()
+const router = useRouter()
+const statusFilter = ref<'all' | 'published' | 'draft'>('all')
+const sortMode = ref<'updated' | 'title'>('updated')
 
-const stats = [
-  { label: '全部项目', value: '6', hint: '2 个正在编辑', icon: 'layers', tone: 'blue' },
-  { label: '已发布活动', value: '3', hint: '本月发布 2 个', icon: 'eye', tone: 'green' },
-  { label: '累计提交', value: '428', hint: '较上周 +18%', icon: 'users', tone: 'violet' },
-  { label: '本周新增', value: '74', hint: '来自 2 个活动', icon: 'chart', tone: 'amber' },
-]
+const statusLabels: Record<ProjectStatus, string> = {
+  draft: '草稿',
+  published: '已发布',
+  unpublished: '已下线',
+  archived: '已归档',
+}
 
-const projects = [
+const statusTones: Record<ProjectStatus, string> = {
+  draft: 'draft',
+  published: 'published',
+  unpublished: 'offline',
+  archived: 'offline',
+}
+
+const projects = computed(() =>
+  projectStore.projects.map((project) => ({
+    ...project,
+    title: project.document.title,
+    statusLabel: statusLabels[project.status],
+    statusTone: statusTones[project.status],
+    submissions: project.submissionCount
+      ? `${project.submissionCount} 条提交`
+      : project.status === 'published'
+        ? '暂无提交'
+        : '尚未发布',
+    updatedAt: formatProjectDate(project.document.updatedAt),
+    slug: project.document.slug,
+  }))
+)
+
+const stats = computed(() => [
   {
-    title: store.doc.title,
-    type: '社团招新',
-    status: '已发布',
-    statusTone: 'published',
-    submissions: '126 人报名',
-    updatedAt: '刚刚更新',
-    coverTone: 'photo',
-    coverCode: 'PHOTO / 26',
-    coverTitle: '寻找校园里的\n下一帧光',
-    slug: store.doc.slug,
+    label: '全部项目',
+    value: String(projectStore.projectCount),
+    hint: `${projectStore.draftCount} 个正在编辑`,
+    icon: 'layers',
+    tone: 'blue',
   },
   {
-    title: '校园歌手大赛人气投票',
-    type: '投票评选',
-    status: '已发布',
-    statusTone: 'published',
-    submissions: '238 次投票',
-    updatedAt: '昨天更新',
-    coverTone: 'music',
-    coverCode: 'VOICE / LIVE',
-    coverTitle: '这一次\n由你来决定',
-    slug: 'voice-vote',
+    label: '已发布活动',
+    value: String(projectStore.publishedCount),
+    hint: '可分享和收集数据',
+    icon: 'eye',
+    tone: 'green',
   },
   {
-    title: '21 天阅读打卡计划',
-    type: '每日打卡',
-    status: '草稿',
-    statusTone: 'draft',
-    submissions: '尚未发布',
-    updatedAt: '3 天前更新',
-    coverTone: 'read',
-    coverCode: 'READ / 21',
-    coverTitle: '每天读一点\n把世界读厚',
-    slug: 'reading-plan',
+    label: '累计提交',
+    value: String(projectStore.projects.reduce((sum, project) => sum + project.submissionCount, 0)),
+    hint: '全部活动合计',
+    icon: 'users',
+    tone: 'violet',
   },
   {
-    title: '迎新志愿者信息收集',
-    type: '信息收集',
-    status: '已下线',
-    statusTone: 'offline',
-    submissions: '64 份信息',
-    updatedAt: '9 月 18 日',
-    coverTone: 'volunteer',
-    coverCode: 'VOLUNTEER',
-    coverTitle: '一起迎接\n新的同学',
-    slug: 'volunteer',
+    label: '本周新增',
+    value: String(
+      projectStore.projects.filter((project) => Date.now() - project.document.createdAt < 7 * 86400000).length
+    ),
+    hint: '最近 7 天创建',
+    icon: 'chart',
+    tone: 'amber',
   },
-]
+])
+
+const rawSearchQuery = computed(() => {
+  const value = route.query.q
+  return (Array.isArray(value) ? (value[0] ?? '') : (value ?? '')).trim()
+})
+const searchQuery = computed(() => rawSearchQuery.value.toLowerCase())
+
+const filteredProjects = computed(() => {
+  const items = projects.value.filter((project) => {
+    const statusMatched =
+      statusFilter.value === 'all' ||
+      (statusFilter.value === 'published' && project.status === 'published') ||
+      (statusFilter.value === 'draft' && project.status === 'draft')
+    if (!statusMatched) return false
+    if (!searchQuery.value) return true
+    const searchable = `${project.title} ${project.type} ${project.statusLabel} ${project.submissions}`.toLowerCase()
+    return searchable.includes(searchQuery.value)
+  })
+  if (sortMode.value === 'title') {
+    return [...items].sort((a, b) => a.title.localeCompare(b.title, 'zh-CN'))
+  }
+  return items
+})
+
+const statusCounts = computed(() => ({
+  all: projects.value.length,
+  published: projects.value.filter((project) => project.status === 'published').length,
+  draft: projects.value.filter((project) => project.status === 'draft').length,
+}))
+
+function formatProjectDate(timestamp: number): string {
+  const diff = Date.now() - timestamp
+  if (diff < 60 * 60 * 1000) return '刚刚更新'
+  if (diff < 24 * 60 * 60 * 1000) return `${Math.floor(diff / 3600000)} 小时前更新`
+  if (diff < 7 * 24 * 60 * 60 * 1000) return `${Math.floor(diff / 86400000)} 天前更新`
+  return new Date(timestamp).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
+}
+
+function toggleSort(): void {
+  sortMode.value = sortMode.value === 'updated' ? 'title' : 'updated'
+}
+
+function clearSearch(): void {
+  void router.replace({ path: '/projects' })
+}
 </script>
 
 <template>
@@ -94,20 +149,38 @@ const projects = [
       <section class="projects-section">
         <div class="projects-toolbar">
           <div class="project-view-tabs">
-            <button class="is-active" type="button">全部项目 <span>6</span></button>
-            <button type="button">已发布</button>
-            <button type="button">草稿</button>
+            <button :class="{ 'is-active': statusFilter === 'all' }" type="button" @click="statusFilter = 'all'">
+              全部项目 <span>{{ statusCounts.all }}</span>
+            </button>
+            <button
+              :class="{ 'is-active': statusFilter === 'published' }"
+              type="button"
+              @click="statusFilter = 'published'"
+            >
+              已发布 <span>{{ statusCounts.published }}</span>
+            </button>
+            <button :class="{ 'is-active': statusFilter === 'draft' }" type="button" @click="statusFilter = 'draft'">
+              草稿 <span>{{ statusCounts.draft }}</span>
+            </button>
           </div>
           <div class="project-toolbar-actions">
-            <button class="project-filter" type="button">最近更新 <Icon name="chevron" :size="13" /></button>
+            <button class="project-filter" type="button" @click="toggleSort">
+              {{ sortMode === 'updated' ? '最近更新' : '名称排序' }}
+              <Icon name="chevron" :size="13" />
+            </button>
             <button class="app-icon-button" type="button" aria-label="更多筛选">
               <Icon name="sliders" :size="15" />
             </button>
           </div>
         </div>
 
+        <div v-if="searchQuery" class="project-search-summary">
+          <span>搜索“{{ rawSearchQuery }}”，找到 {{ filteredProjects.length }} 个项目</span>
+          <button type="button" @click="clearSearch">清除搜索</button>
+        </div>
+
         <div class="project-grid">
-          <article v-for="project in projects" :key="project.title" class="project-card">
+          <article v-for="project in filteredProjects" :key="project.title" class="project-card">
             <div class="project-cover" :class="`project-cover--${project.coverTone}`">
               <div class="project-cover-pattern" />
               <span class="project-cover-code">{{ project.coverCode }}</span>
@@ -126,7 +199,7 @@ const projects = [
               </div>
               <div class="project-meta-row">
                 <span class="status-pill" :class="`status-pill--${project.statusTone}`">
-                  <span />{{ project.status }}
+                  <span />{{ project.statusLabel }}
                 </span>
                 <span>{{ project.submissions }}</span>
               </div>
@@ -134,13 +207,20 @@ const projects = [
                 <span>{{ project.updatedAt }}</span>
                 <div class="project-card-actions">
                   <RouterLink :to="`/p/${project.slug}`" target="_blank"><Icon name="eye" :size="14" />预览</RouterLink>
-                  <RouterLink class="project-edit-link" to="/editor/demo">
+                  <RouterLink class="project-edit-link" :to="`/editor/${project.id}`">
                     编辑<Icon name="arrow-right" :size="14" />
                   </RouterLink>
                 </div>
               </div>
             </div>
           </article>
+
+          <div v-if="filteredProjects.length === 0" class="project-empty-state">
+            <span><Icon name="search" :size="22" /></span>
+            <strong>没有找到匹配的活动</strong>
+            <p>尝试换一个关键词，或者清除当前筛选条件。</p>
+            <button class="app-button app-button--secondary" type="button" @click="clearSearch">清除搜索</button>
+          </div>
 
           <RouterLink class="project-create-card" to="/projects/new">
             <span class="project-create-icon"><Icon name="plus" :size="21" /></span>

@@ -39,6 +39,7 @@ export const useEditorStore = defineStore('editor', () => {
   const future = ref<string[]>([])
   const savedAt = ref<number | null>(null)
   const saving = ref(false)
+  const activeProjectId = ref<string | null>(null)
 
   let pendingSnapshot: string | null = null
   let historyTimer: number | undefined
@@ -164,6 +165,19 @@ export const useEditorStore = defineStore('editor', () => {
     } catch {
       /* 忽略 */
     }
+  }
+
+  function loadDocument(projectId: string, next: Doc): void {
+    const normalized = normalizeDoc(JSON.parse(JSON.stringify(next)) as unknown)
+    if (!normalized) return
+    activeProjectId.value = projectId
+    doc.value = normalized
+    currentPageId.value = normalized.pages.find((page) => page.role === 'home')?.id ?? normalized.pages[0]?.id ?? ''
+    selectedBlockId.value = null
+    past.value = []
+    future.value = []
+    pendingSnapshot = null
+    scheduleSave()
   }
 
   /* ----------------------------- 选择 / 页面 ----------------------------- */
@@ -461,6 +475,7 @@ export const useEditorStore = defineStore('editor', () => {
   return {
     // state
     doc,
+    activeProjectId,
     currentPageId,
     selectedBlockId,
     past,
@@ -511,5 +526,6 @@ export const useEditorStore = defineStore('editor', () => {
     undo,
     redo,
     saveNow,
+    loadDocument,
   }
 })

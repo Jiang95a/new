@@ -1,0 +1,289 @@
+import { computed, ref, watch } from 'vue'
+import { defineStore } from 'pinia'
+import type { Doc } from '@/types/editor'
+import { createBlankDoc, createDemoDoc, createDocFromTemplate } from '@/data/templates'
+import { normalizeDoc } from '@/utils/doc'
+import { slugify, uid } from '@/utils/misc'
+
+export type ProjectStatus = 'draft' | 'published' | 'unpublished' | 'archived'
+
+export interface ProjectRecord {
+  id: string
+  type: string
+  status: ProjectStatus
+  coverTone: string
+  coverCode: string
+  coverTitle: string
+  submissionCount: number
+  document: Doc
+}
+
+interface CreateProjectInput {
+  title: string
+  type?: string
+  org?: string
+  templateId?: string
+  document?: Doc
+}
+
+const STORAGE_KEY = 'diy-campus:projects:v1'
+
+function cloneDocument(document: Doc): Doc {
+  return JSON.parse(JSON.stringify(document)) as Doc
+}
+
+function makeSeedProject(
+  id: string,
+  templateId: string,
+  options: Omit<ProjectRecord, 'id' | 'document'> & {
+    title: string
+    slug: string
+    org: string
+  }
+): ProjectRecord {
+  const base = templateId === 'demo' ? createDemoDoc() : createDocFromTemplate(templateId, createDemoDoc())
+  const now = Date.now()
+  base.id = id
+  base.title = options.title
+  base.slug = options.slug
+  base.meta = { ...base.meta, org: options.org }
+  base.createdAt = now - 7 * 24 * 60 * 60 * 1000
+  base.updatedAt = now - 2 * 60 * 60 * 1000
+  base.published =
+    options.status === 'published'
+      ? {
+          url: `${window.location.origin}/p/${options.slug}`,
+          slug: options.slug,
+          at: now - 24 * 60 * 60 * 1000,
+        }
+      : null
+  return {
+    id,
+    type: options.type,
+    status: options.status,
+    coverTone: options.coverTone,
+    coverCode: options.coverCode,
+    coverTitle: options.coverTitle,
+    submissionCount: options.submissionCount,
+    document: base,
+  }
+}
+
+function createSeedProjects(): ProjectRecord[] {
+  return [
+    makeSeedProject('prj-photo-club', 'recruit', {
+      title: '光影摄影社 · 2026 秋季招新',
+      slug: 'photo-club-2026',
+      org: '光影摄影社',
+      type: '社团招新',
+      status: 'published',
+      coverTone: 'photo',
+      coverCode: 'PHOTO / 26',
+      coverTitle: '寻找校园里的\n下一帧光',
+      submissionCount: 126,
+    }),
+    makeSeedProject('prj-singing-vote', 'vote', {
+      title: '校园歌手大赛人气投票',
+      slug: 'voice-vote',
+      org: '校学生会文艺部',
+      type: '投票评选',
+      status: 'published',
+      coverTone: 'music',
+      coverCode: 'VOICE / LIVE',
+      coverTitle: '这一次\n由你来决定',
+      submissionCount: 238,
+    }),
+    makeSeedProject('prj-reading-21', 'checkin', {
+      title: '21 天阅读打卡计划',
+      slug: 'reading-plan',
+      org: '图书馆学生协会',
+      type: '每日打卡',
+      status: 'draft',
+      coverTone: 'read',
+      coverCode: 'READ / 21',
+      coverTitle: '每天读一点\n把世界读厚',
+      submissionCount: 0,
+    }),
+    makeSeedProject('prj-volunteer-signup', 'signup', {
+      title: '迎新志愿者信息收集',
+      slug: 'volunteer-2026',
+      org: '青年志愿者协会',
+      type: '信息收集',
+      status: 'unpublished',
+      coverTone: 'volunteer',
+      coverCode: 'VOLUNTEER',
+      coverTitle: '一起迎接\n新的同学',
+      submissionCount: 64,
+    }),
+  ]
+}
+
+function restoreProjects(): ProjectRecord[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return createSeedProjects()
+    const parsed = JSON.parse(raw) as Array<Partial<ProjectRecord>>
+    if (!Array.isArray(parsed)) return createSeedProjects()
+    const restored = parsed
+      .map((item, index) => {
+        const document = normalizeDoc(item.document)
+        if (!document) return null
+        return {
+          id: typeof item.id === 'string' ? item.id : `project-${index + 1}`,
+          type: typeof item.type === 'string' ? item.type : '校园活动',
+          status: (item.status ?? 'draft') as ProjectStatus,
+          coverTone: typeof item.coverTone === 'string' ? item.coverTone : 'photo',
+          coverCode: typeof item.coverCode === 'string' ? item.coverCode : 'ACTIVITY',
+          coverTitle: typeof item.coverTitle === 'string' ? item.coverTitle : document.title,
+          submissionCount: Number(item.submissionCount) || 0,
+          document,
+        } satisfies ProjectRecord
+      })
+      .filter((item): item is ProjectRecord => Boolean(item))
+    return restored.length ? restored : createSeedProjects()
+  } catch {
+    return createSeedProjects()
+  }
+}
+
+export const useProjectStore = defineStore('projects', () => {
+  const projects = ref<ProjectRecord[]>(restoreProjects())
+
+  watch(
+    projects,
+    (value) => {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(value))
+      } catch {
+        /* localStorage 容量不足时不阻断编辑 */
+      }
+    },
+    { deep: true }
+  )
+
+  const projectCount = computed(() => projects.value.length)
+  const publishedCount = computed(() => projects.value.filter((project) => project.status === 'published').length)
+  const draftCount = computed(() => projects.value.filter((project) => project.status === 'draft').length)
+
+  function getById(id: string): ProjectRecord | undefined {
+    return projects.value.find((project) => project.id === id)
+  }
+
+  function getBySlug(slug: string): ProjectRecord | undefined {
+    return projects.value.find((project) => project.document.slug === slug)
+  }
+
+  function uniqueSlug(title: string): string {
+    const base = slugify(title) || 'campus-activity'
+    let slug = base
+    let index = 2
+    while (projects.value.some((project) => project.document.slug === slug)) {
+      slug = `${base}-${index}`
+      index += 1
+    }
+    return slug
+  }
+
+  function createProject(input: CreateProjectInput): ProjectRecord {
+    const title = input.title.trim() || '未命名校园活动'
+    let document: Doc
+    if (input.document) {
+      document = normalizeDoc(cloneDocument(input.document)) ?? createBlankDoc()
+    } else if (input.templateId) {
+      document = createDocFromTemplate(input.templateId, createDemoDoc())
+    } else {
+      document = createBlankDoc()
+    }
+    const now = Date.now()
+    const id = uid('prj')
+    document.id = id
+    document.title = title.slice(0, 40)
+    document.slug = uniqueSlug(title)
+    document.meta = {
+      ...document.meta,
+      org: input.org?.trim() || document.meta.org,
+    }
+    document.createdAt = now
+    document.updatedAt = now
+    document.published = null
+
+    const project: ProjectRecord = {
+      id,
+      type: input.type?.trim() || '校园活动',
+      status: 'draft',
+      coverTone: 'photo',
+      coverCode: 'NEW / DRAFT',
+      coverTitle: title,
+      submissionCount: 0,
+      document,
+    }
+    projects.value.unshift(project)
+    return project
+  }
+
+  function saveDocument(projectId: string, document: Doc): void {
+    const project = getById(projectId)
+    if (!project) return
+    project.document = cloneDocument(document)
+  }
+
+  function updateProject(projectId: string, patch: Partial<Pick<ProjectRecord, 'type' | 'status'>>): void {
+    const project = getById(projectId)
+    if (!project) return
+    Object.assign(project, patch)
+  }
+
+  function publishProject(projectId: string, url: string, slug: string): void {
+    const project = getById(projectId)
+    if (!project) return
+    project.status = 'published'
+    project.document.slug = slug
+    project.document.published = { url, slug, at: Date.now() }
+    project.document.updatedAt = Date.now()
+  }
+
+  function unpublishProject(projectId: string): void {
+    const project = getById(projectId)
+    if (!project) return
+    project.status = 'unpublished'
+    project.document.published = null
+    project.document.updatedAt = Date.now()
+  }
+
+  function duplicateProject(projectId: string): ProjectRecord | undefined {
+    const source = getById(projectId)
+    if (!source) return
+    const title = `${source.document.title}（副本）`
+    const copy = createProject({
+      title,
+      type: source.type,
+      document: source.document,
+    })
+    copy.coverTone = source.coverTone
+    copy.coverCode = source.coverCode
+    copy.coverTitle = source.coverTitle
+    copy.document.published = null
+    copy.status = 'draft'
+    return copy
+  }
+
+  function removeProject(projectId: string): void {
+    projects.value = projects.value.filter((project) => project.id !== projectId)
+  }
+
+  return {
+    projects,
+    projectCount,
+    publishedCount,
+    draftCount,
+    getById,
+    getBySlug,
+    createProject,
+    saveDocument,
+    updateProject,
+    publishProject,
+    unpublishProject,
+    duplicateProject,
+    removeProject,
+  }
+})

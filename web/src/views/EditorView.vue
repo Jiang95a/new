@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { RouterLink, useRoute } from 'vue-router'
 import Icon from '@/components/ui/Icon.vue'
@@ -14,6 +14,7 @@ import PreviewModal from '@/components/modals/PreviewModal.vue'
 import PublishModal from '@/components/modals/PublishModal.vue'
 import AuditModal from '@/components/modals/AuditModal.vue'
 import { useEditorStore } from '@/stores/editor'
+import { useProjectStore } from '@/stores/projects'
 import { useToast } from '@/composables/useToast'
 import { formatTime } from '@/utils/misc'
 import type { BlockType, Doc } from '@/types/editor'
@@ -24,6 +25,7 @@ type CreateTab = 'ai' | 'template' | 'poster'
 
 const route = useRoute()
 const store = useEditorStore()
+const projectStore = useProjectStore()
 const toast = useToast()
 const { doc, currentPage, blockCount, saving, savedAt, canUndo, canRedo, issueSummary } = storeToRefs(store)
 
@@ -35,6 +37,39 @@ const previewOpen = ref(false)
 const publishOpen = ref(false)
 const auditOpen = ref(false)
 const deviceWidth = ref(390)
+const activeProjectId = ref('')
+let syncReady = false
+
+const requestedProjectId = computed(() => String(route.params.projectId ?? ''))
+
+function loadRequestedProject(): void {
+  const project =
+    projectStore.getById(requestedProjectId.value) ??
+    projectStore.getBySlug(requestedProjectId.value) ??
+    projectStore.projects[0]
+  if (!project) return
+  activeProjectId.value = project.id
+  store.loadDocument(project.id, project.document)
+  syncReady = true
+}
+
+watch(requestedProjectId, loadRequestedProject, { immediate: true })
+
+watch(
+  doc,
+  (value) => {
+    if (!syncReady || !activeProjectId.value) return
+    projectStore.saveDocument(activeProjectId.value, value)
+    const project = projectStore.getById(activeProjectId.value)
+    if (!project) return
+    if (value.published && project.status !== 'published') {
+      projectStore.publishProject(activeProjectId.value, value.published.url, value.published.slug)
+    } else if (!value.published && project.status === 'published') {
+      projectStore.unpublishProject(activeProjectId.value)
+    }
+  },
+  { deep: true }
+)
 
 const saveLabel = computed(() => {
   if (saving.value) return '保存中...'
@@ -101,6 +136,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   <main class="editor-shell studio-editor">
     <header class="editor-topbar">
       <div class="editor-project-area">
+        <RouterLink class="editor-back-link" to="/projects">
+          <span>←</span>
+          工作台
+        </RouterLink>
         <RouterLink class="editor-logo" to="/projects" aria-label="返回工作台"
           ><span><i /><i /></span
         ></RouterLink>

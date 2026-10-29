@@ -65,7 +65,29 @@ const posterForm = ref({
   contact: '',
 })
 
-function onPosterPick(event: Event): void {
+async function compressPoster(file: File): Promise<string> {
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result ?? ''))
+    reader.onerror = () => reject(reader.error)
+    reader.readAsDataURL(file)
+  })
+  const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => resolve(img)
+    img.onerror = () => reject(new Error('图片读取失败'))
+    img.src = dataUrl
+  })
+  const maxSide = 1400
+  const scale = Math.min(1, maxSide / Math.max(image.width, image.height))
+  const canvas = document.createElement('canvas')
+  canvas.width = Math.max(1, Math.round(image.width * scale))
+  canvas.height = Math.max(1, Math.round(image.height * scale))
+  canvas.getContext('2d')?.drawImage(image, 0, 0, canvas.width, canvas.height)
+  return canvas.toDataURL('image/jpeg', 0.82)
+}
+
+async function onPosterPick(event: Event): Promise<void> {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
   input.value = ''
@@ -78,8 +100,12 @@ function onPosterPick(event: Event): void {
     toast.pushToast('图片不要超过 5MB', 'warn')
     return
   }
-  if (posterFile.value) URL.revokeObjectURL(posterFile.value)
-  posterFile.value = URL.createObjectURL(file)
+  try {
+    posterFile.value = await compressPoster(file)
+  } catch {
+    toast.pushToast('图片处理失败，请换一张图片', 'error')
+    return
+  }
   posterName.value = file.name
   posterForm.value.title = store.doc.title
   posterForm.value.org = store.doc.meta.org
@@ -164,7 +190,13 @@ function applyPoster(): void {
     capacity: Number(posterForm.value.capacity) || 0,
     contact: posterForm.value.contact,
   })
-  emit('applied', newDocFromBuild(build, store.doc))
+  const next = newDocFromBuild(build, store.doc)
+  const homePage = next.pages.find((page) => page.role === 'home') ?? next.pages[0]
+  const banner = homePage?.blocks.find((block) => block.type === 'banner')
+  if (banner && posterFile.value) {
+    banner.props.image = posterFile.value
+  }
+  emit('applied', next)
 }
 
 function close(): void {
@@ -318,7 +350,7 @@ const FORM_FIELDS: { key: PosterTextKey; label: string; placeholder: string }[] 
         <div class="poster-tab__form">
           <p class="poster-tab__note">
             <Icon name="info" :size="12" />
-            离线演示：还没接 OCR，下面的字段先用你当前项目的值，请核对后生成。
+            暂未接入 OCR：图片会作为首页 Banner，下面的字段请手动核对后生成。
           </p>
           <label v-for="field in FORM_FIELDS" :key="field.key" class="field">
             <span class="field__label">{{ field.label }}</span>

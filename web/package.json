@@ -5,15 +5,15 @@
   "type": "module",
   "packageManager": "pnpm@11.19.0",
   "scripts": {
-    "dev": "vite",
-    "build": "run-p type-check \"build-only {@}\" --",
-    "preview": "vite preview",
-    "test:unit": "vitest",
-    "build-only": "vite build",
-    "format": "prettier --write .",
-    "format:check": "prettier --check .",
-    "typecheck": "vue-tsc --build",
-    "type-check": "vue-tsc --build"
+    "dev": "node ./node_modules/vite/bin/vite.js",
+    "build": "node ./node_modules/vue-tsc/bin/vue-tsc.js --build && node ./node_modules/vite/bin/vite.js build",
+    "preview": "node ./node_modules/vite/bin/vite.js preview",
+    "test:unit": "node ./node_modules/vitest/vitest.mjs",
+    "build-only": "node ./node_modules/vite/bin/vite.js build",
+    "format": "node ./node_modules/prettier/bin/prettier.cjs --write .",
+    "format:check": "node ./node_modules/prettier/bin/prettier.cjs --check .",
+    "typecheck": "node ./node_modules/vue-tsc/bin/vue-tsc.js --build",
+    "type-check": "node ./node_modules/vue-tsc/bin/vue-tsc.js --build"
   },
   "dependencies": {
     "pinia": "^4.0.3",

@@ -29,6 +29,33 @@
   gap: 10px;
 }
 
+.editor-back-link {
+  display: inline-flex;
+  height: 31px;
+  align-items: center;
+  gap: 5px;
+  margin-right: 2px;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink-soft);
+  background: #fff;
+  font-size: 8px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.editor-back-link:hover {
+  border-color: #c7d2e5;
+  color: var(--primary);
+  background: var(--surface-soft);
+}
+
+.editor-back-link span {
+  font-size: 12px;
+  line-height: 1;
+}
+
 .editor-logo {
   display: grid;
   width: 34px;

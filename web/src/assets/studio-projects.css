@@ -108,6 +108,30 @@
   margin-bottom: 18px;
 }
 
+.project-search-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin: -4px 0 16px;
+  padding: 10px 13px;
+  border: 1px solid #dbe4f7;
+  border-radius: 10px;
+  color: var(--primary);
+  background: var(--primary-soft);
+  font-size: 10px;
+}
+
+.project-search-summary button {
+  padding: 0;
+  border: 0;
+  color: var(--primary);
+  background: transparent;
+  font-size: 9px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
 .project-view-tabs {
   display: flex;
   gap: 4px;
@@ -164,6 +188,40 @@
   display: grid;
   gap: 18px;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.project-empty-state {
+  display: flex;
+  min-height: 330px;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  padding: 30px;
+  border: 1px dashed #cbd4e5;
+  border-radius: var(--radius-md);
+  background: rgb(255 255 255 / 55%);
+  text-align: center;
+}
+
+.project-empty-state > span {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  border-radius: 15px;
+  color: var(--primary);
+  background: var(--primary-soft);
+  place-items: center;
+}
+
+.project-empty-state strong {
+  margin-top: 14px;
+  font-size: 14px;
+}
+
+.project-empty-state p {
+  margin: 7px 0 16px;
+  color: var(--muted);
+  font-size: 10px;
 }
 
 .project-card {
