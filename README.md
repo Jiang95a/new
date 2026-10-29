@@ -15,7 +15,7 @@
 - [`团队综合开发文档`](./docs/团队综合开发文档.md) — 总体方案
 - [`OpenAPI 契约`](./docs/api/openapi.yaml) — **改接口先改它**
 - [`MySQL 建库脚本`](./docs/sql/00_create_database.sql) — 建库 + 建专用账号（root 执行）
-- [`初始化 SQL（MySQL 8）`](./docs/sql/001_init.sql) — 9 张表，可重复执行
+- [`初始化 SQL（MySQL 8）`](./docs/sql/001_init.sql) — 11 张表，可重复执行
 - [`演示数据`](./docs/sql/002_seed.sql) — 演示用户 / 模板 / 项目，后端第一天就能跑通
 - [`MySQL 五步上手`](./docs/mysql-快速开始.md) — 装到验证，十分钟
 - [`环境变量模板`](./docs/.env.example) — 复制成本地 `.env`

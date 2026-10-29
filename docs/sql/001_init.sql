@@ -298,7 +298,7 @@ CREATE TABLE IF NOT EXISTS export_jobs (
 
 -- ============================================================================
 -- 跑完自查：
---   1) 应该看到 9 张表
+--   1) 应该看到 11 张表
 --        SHOW TABLES;
 --   2) 每张表的 Collation 必须带 utf8mb4
 --        SELECT TABLE_NAME, TABLE_COLLATION FROM information_schema.TABLES
