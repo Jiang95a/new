@@ -52,3 +52,5 @@ work/
 *.tmp
 *.bak
 get-pip.py
+test.py
+test1.py

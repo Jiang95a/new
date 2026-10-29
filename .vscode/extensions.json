@@ -3,7 +3,9 @@
     "dbaeumer.vscode-eslint",
     "esbenp.prettier-vscode",
     "bradlc.vscode-tailwindcss",
-    "eamodio.gitlens"
+    "eamodio.gitlens",
+    "ms-python.python",
+    "ms-python.vscode-pylance"
   ]
 }
 
