@@ -59,11 +59,24 @@ public final class Dtos {
             String title,
             String description,
             String templateId,
-            JsonNode initialDocument
+            JsonNode initialDocument,
+            /** 活动类型，如 社团招新；不传则从模板名推导 */
+            String activityType,
+            /** 卡片配色主题；不传则从模板 category 推导 */
+            String coverTone,
+            /** 卡片角标文字，如 PHOTO / 26 */
+            String coverCode,
+            /** 卡片大标题，支持 \n 换行 */
+            @jakarta.validation.constraints.Size(max = 160, message = "封面标题最多 160 字")
+            String coverTitle
     ) {
     }
 
-    public record UpdateProjectRequest(String title, String description) {
+    public record UpdateProjectRequest(String title, String description,
+                                       String activityType, String coverTone,
+                                       String coverCode,
+                                       @jakarta.validation.constraints.Size(max = 160, message = "封面标题最多 160 字")
+                                       String coverTitle) {
     }
 
     public record DuplicateProjectRequest(
@@ -76,6 +89,10 @@ public final class Dtos {
     public record ProjectDto(String id,
                              String title,
                              String description,
+                             String activityType,
+                             String coverTone,
+                             String coverCode,
+                             String coverTitle,
                              String status,
                              long draftRevision,
                              String publicSlug,
@@ -102,6 +119,13 @@ public final class Dtos {
     public record SaveDraftResult(long revision, String savedAt) {
     }
 
+    /**
+     * 局部更新草稿：patch 按 RFC 7386 JSON Merge Patch 语义合并进现有文档。
+     * baseRevision 可选；给了就必须等于服务端当前 revision，否则 409。
+     */
+    public record PatchDraftRequest(Long baseRevision, JsonNode patch) {
+    }
+
     // ================================================================ Versions
 
     public record VersionDto(String id, int versionNo, String source, JsonNode document, String createdAt) {
@@ -126,7 +150,16 @@ public final class Dtos {
     // ================================================================ Public
 
     public record PublicActivityDto(String slug, String title, String status, JsonNode document,
-                                    JsonNode publishSettings) {
+                                    JsonNode publishSettings,
+                                    String activityType, String coverTone, String coverCode,
+                                    String coverTitle) {
+    }
+
+    /** 公开活动列表里的一条，只暴露白名单字段（绝不带 draftDocument / ownerId）。 */
+    public record PublicActivitySummaryDto(String slug, String title, String description,
+                                           String activityType, String coverTone,
+                                           String coverCode, String coverTitle,
+                                           String status, String updatedAt) {
     }
 
     public record SubmissionRequest(
@@ -191,7 +224,18 @@ public final class Dtos {
                                       long validSubmissions,
                                       long pageViews,
                                       long publishedPages,
-                                      List<Map<String, Object>> byDay) {
+                                      List<Map<String, Object>> byDay,
+                                      /** 按事件类型分项计数：public_page_view / form_submitted … */
+                                      Map<String, Long> byEventType,
+                                      /** 表单开始填写的次数（form_started），用来算转化率 */
+                                      long formStarted,
+                                      /** 提交成功率 = validSubmissions / formStarted，formStarted 为 0 时给 0 */
+                                      double conversionRate) {
+    }
+
+    /** 事件明细里的一条。 */
+    public record ActivityEventDto(String id, String eventType, String pageId,
+                                   JsonNode metadata, String occurredAt) {
     }
 
     /** 供前端 select 使用的键值对。 */

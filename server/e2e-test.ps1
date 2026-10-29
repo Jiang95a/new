@@ -22,11 +22,46 @@ function Hit($method, $path, $body, $token) {
     }
     try {
         $resp = Invoke-WebRequest @params
-        return @{ code = [int]$resp.StatusCode; body = $resp.Content }
+        return @{ code = [int]$resp.StatusCode; body = (ReadUtf8 $resp) }
     } catch {
         $r = $_.Exception.Response
         if ($r) {
-            $sr = New-Object System.IO.StreamReader($r.GetResponseStream())
+            $sr = New-Object System.IO.StreamReader($r.GetResponseStream(), [System.Text.Encoding]::UTF8)
+            return @{ code = [int]$r.StatusCode; body = $sr.ReadToEnd() }
+        }
+        return @{ code = 0; body = $_.Exception.Message }
+    }
+}
+
+# PowerShell 5.1 的 Invoke-WebRequest 按 ISO-8859-1 解码响应体，
+# 会把 UTF-8 中文变成乱码。这里统一按 UTF-8 重新解码。
+function ReadUtf8($resp) {
+    $ms = New-Object System.IO.MemoryStream
+    $resp.RawContentStream.Position = 0
+    $resp.RawContentStream.CopyTo($ms)
+    return [System.Text.Encoding]::UTF8.GetString($ms.ToArray())
+}
+
+# PowerShell 5.1 的 Invoke-WebRequest 没有 -Form，手动拼 multipart/form-data
+function UploadFile($path, $field, $token) {
+    $boundary = [guid]::NewGuid().ToString()
+    $fileBytes = [System.IO.File]::ReadAllBytes($path)
+    $fileName = [System.IO.Path]::GetFileName($path)
+    $bStart = [System.Text.Encoding]::UTF8.GetBytes("--$boundary`r`n")
+    $bHead  = [System.Text.Encoding]::UTF8.GetBytes("Content-Disposition: form-data; name=`"$field`"; filename=`"$fileName`"`r`nContent-Type: image/png`r`n`r`n")
+    $bEnd   = [System.Text.Encoding]::UTF8.GetBytes("`r`n--$boundary--`r`n")
+    $buf = New-Object System.Collections.Generic.List[byte]
+    $buf.AddRange($bStart); $buf.AddRange($bHead); $buf.AddRange($fileBytes); $buf.AddRange($bEnd)
+    try {
+        $resp = Invoke-WebRequest -Uri "$base/assets" -Method POST `
+            -Headers @{ Authorization = "Bearer $token" } `
+            -ContentType "multipart/form-data; boundary=$boundary" `
+            -Body $buf.ToArray() -UseBasicParsing -TimeoutSec 40
+        return @{ code = [int]$resp.StatusCode; body = (ReadUtf8 $resp) }
+    } catch {
+        $r = $_.Exception.Response
+        if ($r) {
+            $sr = New-Object System.IO.StreamReader($r.GetResponseStream(), [System.Text.Encoding]::UTF8)
             return @{ code = [int]$r.StatusCode; body = $sr.ReadToEnd() }
         }
         return @{ code = 0; body = $_.Exception.Message }
@@ -226,5 +261,289 @@ Check 'POST /auth/logout' $r.code 200
 $r = Hit 'GET' '/auth/me' $null $token
 Check '登出后 /auth/me 应 401' $r.code 401
 
+# ============================================================================
+# 以下是「补全后端功能」后新增的验收：
+#   13. 封面字段 14. 模板种子 15. 公开活动列表 16. 草稿 PATCH 17. 统计明细 18. 文件绝对 URL
+# ============================================================================
+
+# 需要重新拿一个新 token（上面刚登出）
+$email3 = "e2e$((Get-Random -Maximum 999999))@example.com"
+$r = Hit 'POST' '/auth/register' @{ email = $email3; password = 'Passw0rd!123'; displayName = '赵同学' } $null
+$token = ($r.body | ConvertFrom-Json).data.accessToken
+
+Write-Host "`n===== 13. 封面字段 =====" -ForegroundColor Cyan
+$r = Hit 'POST' '/projects' @{
+    title        = '封面字段测试'
+    templateId   = $tplId
+    activityType = '社团招新'
+    coverTone    = 'vote'
+    coverCode    = 'PHOTO / 26'
+    coverTitle   = '寻找校园里的下一帧光'
+} $token
+Check 'POST /projects（带封面四项）' $r.code 200
+$p3 = ($r.body | ConvertFrom-Json).data
+$pidF = $p3.id
+Check 'activityType 回显' $p3.activityType '社团招新'
+Check 'coverTone 回显' $p3.coverTone 'vote'
+Check 'coverCode 回显' $p3.coverCode 'PHOTO / 26'
+Check 'coverTitle 回显' $p3.coverTitle '寻找校园里的下一帧光'
+
+# 不传封面时要能自动推导，不能是 null
+$r = Hit 'POST' '/projects' @{ title = '无封面参数项目'; templateId = $tplId } $token
+$p4 = ($r.body | ConvertFrom-Json).data
+$autoTone = $p4.coverTone
+$autoCode = $p4.coverCode
+$autoTitle = $p4.coverTitle
+if ($autoTone -and $autoCode -and $autoTitle) {
+    Write-Host ("  [PASS] 未传封面时自动推导：tone={0} code={1} title={2}" -f $autoTone, $autoCode, $autoTitle) -ForegroundColor Green
+    $pass++
+} else {
+    Write-Host "  [FAIL] 未传封面时推导失败，出现了 null" -ForegroundColor Red
+    $fail++
+}
+
+# 更新封面
+$r = Hit 'PUT' "/projects/$pidF" @{ coverTone = 'music'; coverCode = 'MUSIC / 26' } $token
+Check 'PUT /projects/{id}（改封面）' $r.code 200
+$p3u = ($r.body | ConvertFrom-Json).data
+Check '封面改后 coverTone' $p3u.coverTone 'music'
+Check '封面改后标题不变' $p3u.coverTitle '寻找校园里的下一帧光'
+
+# 列表里必须带封面字段
+$r = Hit 'GET' '/projects?page=1&pageSize=5' $null $token
+Check 'GET /projects 带封面' $r.code 200
+$firstProj = ($r.body | ConvertFrom-Json).data[0]
+if ($firstProj.PSObject.Properties.Name -contains 'coverTone') {
+    Write-Host "  [PASS] 列表返回体包含 coverTone / coverCode / coverTitle / activityType" -ForegroundColor Green
+    $pass++
+} else {
+    Write-Host "  [FAIL] 列表返回体缺少封面字段" -ForegroundColor Red
+    $fail++
+}
+
+# 按活动类型过滤
+$r = Hit 'GET' ('/projects?activityType=' + [uri]::EscapeDataString('社团招新') + '&page=1&pageSize=5') $null $token
+Check 'GET /projects?activityType=（按类型筛选）' $r.code 200
+
+Write-Host "`n===== 14. 模板种子 =====" -ForegroundColor Cyan
+$r = Hit 'GET' '/templates' $null $token
+Check 'GET /templates' $r.code 200
+$allTpl = ($r.body | ConvertFrom-Json).data
+Write-Host "  模板总数: $($allTpl.Count)"
+if ($allTpl.Count -ge 7) {
+    Write-Host "  [PASS] 模板数量 >= 7" -ForegroundColor Green
+    $pass++
+} else {
+    Write-Host "  [FAIL] 模板数量 $($allTpl.Count) < 7，004_more_templates.sql 可能没执行" -ForegroundColor Red
+    $fail++
+}
+$categories = $allTpl | ForEach-Object { $_.category } | Select-Object -Unique
+Write-Host ("  覆盖分类: " + ($categories -join ', '))
+
+$r = Hit 'GET' '/templates?category=vote' $null $token
+Check 'GET /templates?category=vote' $r.code 200
+$voteTpl = ($r.body | ConvertFrom-Json).data
+if ($voteTpl.Count -ge 1) {
+    Write-Host "  [PASS] vote 分类模板数 $($voteTpl.Count)" -ForegroundColor Green
+    $pass++
+} else {
+    Write-Host "  [FAIL] vote 分类没有模板" -ForegroundColor Red
+    $fail++
+}
+
+# 用非 recruitment 模板建项目，验证模板能被正确实例化（不能报 422）
+if ($voteTpl.Count -ge 1) {
+    $r = Hit 'POST' '/projects' @{ title = '用投票模板建的项目'; templateId = $voteTpl[0].id } $token
+    Check 'POST /projects（用 vote 模板）' $r.code 200
+    $pVote = ($r.body | ConvertFrom-Json).data
+    if ($pVote.draftDocument -and $pVote.draftDocument.pages.Count -ge 1) {
+        $blkCount = ($pVote.draftDocument.pages | ForEach-Object { $_.blocks.Count } | Measure-Object -Sum).Sum
+        Write-Host ("  [PASS] 模板实例化成功：{0} 页 / {1} 个区块" -f $pVote.draftDocument.pages.Count, $blkCount) -ForegroundColor Green
+        $pass++
+    } else {
+        Write-Host "  [FAIL] 模板实例化后 draftDocument 没有 pages" -ForegroundColor Red
+        $fail++
+    }
+    # 模板没有 id，后端要自动补齐，否则发布会被 schema 打回
+    $firstPage = $pVote.draftDocument.pages[0]
+    $firstBlock = $firstPage.blocks[0]
+    if ($firstPage.id -and $firstBlock.id) {
+        Write-Host ("  [PASS] 自动补 id：page={0} block={1}" -f $firstPage.id, $firstBlock.id) -ForegroundColor Green
+        $pass++
+    } else {
+        Write-Host "  [FAIL] 模板实例化后没补 page.id / block.id" -ForegroundColor Red
+        $fail++
+    }
+}
+
+Write-Host "`n===== 15. 公开活动列表 =====" -ForegroundColor Cyan
+$r = Hit 'GET' '/public/activities' $null $null
+Check 'GET /public/activities（匿名）' $r.code 200
+$pubList = ($r.body | ConvertFrom-Json)
+Write-Host "  公开活动总数: $($pubList.pagination.total)"
+
+if ($slug) {
+    $found = $pubList.data | Where-Object { $_.slug -eq $slug }
+    if ($found) {
+        Write-Host ("  [PASS] 刚发布的活动出现在公开列表里：$slug") -ForegroundColor Green
+        $pass++
+        if ($found.status -eq 'published') {
+            Write-Host "  [PASS] 公开列表 status=published" -ForegroundColor Green
+            $pass++
+        } else {
+            Write-Host "  [FAIL] 公开列表 status=$($found.status)，期望 published" -ForegroundColor Red
+            $fail++
+        }
+        if ($found.PSObject.Properties.Name -contains 'coverTone') {
+            Write-Host "  [PASS] 公开列表带封面字段" -ForegroundColor Green
+            $pass++
+        } else {
+            Write-Host "  [FAIL] 公开列表缺封面字段" -ForegroundColor Red
+            $fail++
+        }
+        # 绝不能泄露草稿内容
+        $leak = $found.PSObject.Properties.Name -contains 'draftDocument'
+        if ($leak) {
+            Write-Host "  [FAIL] 公开列表泄露了 draftDocument" -ForegroundColor Red
+            $fail++
+        } else {
+            Write-Host "  [PASS] 公开列表不泄露 draftDocument" -ForegroundColor Green
+            $pass++
+        }
+    } else {
+        Write-Host "  [FAIL] 刚发布的活动 $slug 没出现在公开列表里" -ForegroundColor Red
+        $fail++
+    }
+}
+
+$r = Hit 'GET' '/public/activities?q=不存在的关键词xyz' $null $null
+Check 'GET /public/activities?q=（搜不到也应 200）' $r.code 200
+
+Write-Host "`n===== 16. 草稿 PATCH（局部更新） =====" -ForegroundColor Cyan
+$r = Hit 'POST' '/projects' @{ title = 'PATCH 测试项目'; templateId = $tplId } $token
+$pidPatch = ($r.body | ConvertFrom-Json).data.id
+$r = Hit 'GET' "/projects/$pidPatch/draft" $null $token
+Check 'GET /draft（新建项目）' $r.code 200
+$d0 = ($r.body | ConvertFrom-Json).data
+$rev0 = $d0.revision
+$page0 = $d0.document.pages[0]
+$pageId0 = $page0.id
+$blockId0 = $page0.blocks[0].id
+$oldTitle = $page0.name
+Write-Host "  revision=$rev0 pageId=$pageId0 blockId=$blockId0 pageName=$oldTitle"
+
+# 只改一个页面的 name
+$patchDoc = @{ pages = @(@{ id = $pageId0; name = '改名后的首页' }) }
+$r = Hit 'PATCH' "/projects/$pidPatch/draft" @{ baseRevision = $rev0; patch = $patchDoc } $token
+Check 'PATCH /draft（改页面名）' $r.code 200
+$rev1 = ($r.body | ConvertFrom-Json).data.revision
+if ($rev1 -eq ($rev0 + 1)) {
+    Write-Host "  [PASS] revision 递增 $rev0 -> $rev1" -ForegroundColor Green
+    $pass++
+} else {
+    Write-Host "  [FAIL] revision 没递增：$rev0 -> $rev1" -ForegroundColor Red
+    $fail++
+}
+
+$r = Hit 'GET' "/projects/$pidPatch/draft" $null $token
+$d1 = ($r.body | ConvertFrom-Json).data
+if ($d1.document.pages[0].name -eq '改名后的首页') {
+    Write-Host "  [PASS] patch 生效：页面名已改" -ForegroundColor Green
+    $pass++
+} else {
+    Write-Host "  [FAIL] patch 没生效：页面名还是 $($d1.document.pages[0].name)" -ForegroundColor Red
+    $fail++
+}
+if ($d1.document.pages[0].blocks.Count -eq $page0.blocks.Count) {
+    Write-Host "  [PASS] 未 patch 的字段（blocks）被保留" -ForegroundColor Green
+    $pass++
+} else {
+    Write-Host "  [FAIL] patch 误删了 blocks" -ForegroundColor Red
+    $fail++
+}
+
+# 旧 revision 再来一次应该 409
+$r = Hit 'PATCH' "/projects/$pidPatch/draft" @{ baseRevision = $rev0; patch = @{ title = '过期写法' } } $token
+Check 'PATCH /draft（旧 baseRevision）应 409' $r.code 409
+
+# patch 不是对象应 422
+$r = Hit 'PATCH' "/projects/$pidPatch/draft" @{ baseRevision = $rev1; patch = @(1, 2, 3) } $token
+Check 'PATCH /draft（patch 不是对象）应 422' $r.code 422
+
+# patch 把文档改坏，必须被 schema 拦住
+$r = Hit 'PATCH' "/projects/$pidPatch/draft" @{ baseRevision = $rev1; patch = @{ pages = 'not-an-array' } } $token
+Check 'PATCH /draft（改坏文档）应 422' $r.code 422
+
+Write-Host "`n===== 17. 统计明细 =====" -ForegroundColor Cyan
+# 注意：上面 13 组换了新用户，$pid2 属于旧用户；这里要用当前 token 自己的项目
+# 先给 $pidF 制造一次浏览 + 一次提交，否则 byDay / byEventType 天然是空的
+$slugF = 'pick-' + (Get-Random -Minimum 100000 -Maximum 999999)
+$r = Hit 'GET' "/projects/$pidF/draft" $null $token
+$dF = ($r.body | ConvertFrom-Json).data.document
+$pgF = $dF.pages[0].id
+$blkF = $dF.pages[0].blocks[0].id
+$r = Hit 'POST' "/projects/$pidF/publish" @{ settings = @{}; slug = $slugF } $token
+Check 'POST publish（封面项目）' $r.code 200
+$r = Hit 'GET' "/public/activities/$slugF" $null $null
+Check 'GET 公开页（制造浏览事件）' $r.code 200
+
+$r = Hit 'GET' "/projects/$pidF/analytics/summary" $null $token
+Check 'GET analytics/summary' $r.code 200
+$sum = ($r.body | ConvertFrom-Json).data
+Write-Host "  submissions=$($sum.submissions) views=$($sum.pageViews) formStarted=$($sum.formStarted) conversion=$($sum.conversionRate)"
+if ($null -ne $sum.byEventType) {
+    Write-Host ("  byEventType: " + (($sum.byEventType.PSObject.Properties | ForEach-Object { "$($_.Name)=$($_.Value)" }) -join ', '))
+    Write-Host "  [PASS] summary 带 byEventType" -ForegroundColor Green
+    $pass++
+} else {
+    Write-Host "  [FAIL] summary 缺 byEventType" -ForegroundColor Red
+    $fail++
+}
+if ($sum.byDay.Count -gt 0) {
+    Write-Host ("  [PASS] byDay 有数据：" + (($sum.byDay | ForEach-Object { "$($_.date)(views=$($_.views),subs=$($_.submissions))" }) -join '; ')) -ForegroundColor Green
+    $pass++
+} else {
+    Write-Host "  [FAIL] byDay 仍是空的（浏览埋点没聚合进来）" -ForegroundColor Red
+    $fail++
+}
+
+$r = Hit 'GET' "/projects/$pidF/analytics/events?page=1&pageSize=10" $null $token
+Check 'GET analytics/events' $r.code 200
+$ev = ($r.body | ConvertFrom-Json)
+Write-Host "  事件总数: $($ev.pagination.total)"
+
+$r = Hit 'GET' "/projects/$pidF/analytics/events?eventType=public_page_view" $null $token
+Check 'GET analytics/events?eventType=' $r.code 200
+
+Write-Host "`n===== 18. 文件绝对 URL =====" -ForegroundColor Cyan
+# 造一张 1x1 PNG 直接上传
+$pngBytes = [Convert]::FromBase64String('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==')
+$tmpPng = Join-Path $env:TEMP ('e2e-' + [guid]::NewGuid().ToString() + '.png')
+[System.IO.File]::WriteAllBytes($tmpPng, $pngBytes)
+try {
+    $up = UploadFile $tmpPng 'file' $token
+    Check 'POST /assets（上传 PNG）' $up.code 200
+    $asset = ($up.body | ConvertFrom-Json).data
+    Write-Host "  url=$($asset.url)"
+    if ($asset.url -match '^https?://') {
+        Write-Host "  [PASS] 上传返回绝对 URL" -ForegroundColor Green
+        $pass++
+    } else {
+        Write-Host "  [FAIL] 上传返回的是相对路径，前端跨端口会 404" -ForegroundColor Red
+        $fail++
+    }
+    # 绝对 URL 必须真能取到
+    if ($asset.url -match '^https?://') {
+        $dl = Invoke-WebRequest -Uri $asset.url -UseBasicParsing -TimeoutSec 20
+        Check 'GET 上传文件（用返回的绝对 URL）' ([int]$dl.StatusCode) 200
+    }
+} catch {
+    Write-Host "  [FAIL] 上传失败：$($_.Exception.Message)" -ForegroundColor Red
+    $fail++
+} finally {
+    if (Test-Path $tmpPng) { Remove-Item $tmpPng -Force }
+}
+
 Write-Host ("`n================ 汇总：PASS {0} / FAIL {1} ================" -f $pass, $fail) -ForegroundColor Yellow
 if ($fail -eq 0) { Write-Host "全部通过" -ForegroundColor Green } else { Write-Host "有失败项，见上面 [FAIL]" -ForegroundColor Red }
+exit $(if ($fail -eq 0) { 0 } else { 1 })

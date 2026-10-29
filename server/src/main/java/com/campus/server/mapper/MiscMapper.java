@@ -62,6 +62,53 @@ public interface MiscMapper {
             """)
     List<java.util.Map<String, Object>> submissionsByDay(@Param("projectId") String projectId);
 
+    /**
+     * 浏览埋点按天聚合，用于补足 byDay 里「只有提交、没有浏览」的空白天。
+     * 返回列：d（日期）、c（次数）。
+     */
+    @Select("""
+            SELECT DATE(occurred_at) AS d, COUNT(*) AS c
+              FROM activity_events
+             WHERE project_id = #{projectId} AND event_type = 'public_page_view'
+             GROUP BY DATE(occurred_at)
+             ORDER BY d
+            """)
+    List<java.util.Map<String, Object>> viewsByDay(@Param("projectId") String projectId);
+
+    /** 分事件类型的汇总计数，用于看板上的分项卡片。 */
+    @Select("""
+            SELECT event_type AS t, COUNT(*) AS c
+              FROM activity_events
+             WHERE project_id = #{projectId}
+             GROUP BY event_type
+            """)
+    List<java.util.Map<String, Object>> eventsGrouped(@Param("projectId") String projectId);
+
+    /** 原始事件列表（分页），给「明细」页用。 */
+    @Select("""
+            <script>
+            SELECT id, project_id, event_type, page_id, metadata, occurred_at
+              FROM activity_events
+             WHERE project_id = #{projectId}
+             <if test="eventType != null and eventType != ''"> AND event_type = #{eventType} </if>
+             ORDER BY occurred_at DESC, id DESC
+             LIMIT #{limit} OFFSET #{offset}
+            </script>
+            """)
+    List<com.campus.server.entity.MiscEntities.ActivityEventEntity> listEvents(@Param("projectId") String projectId,
+                                                                              @Param("eventType") String eventType,
+                                                                              @Param("limit") int limit,
+                                                                              @Param("offset") int offset);
+
+    @Select("""
+            <script>
+            SELECT COUNT(*) FROM activity_events
+             WHERE project_id = #{projectId}
+             <if test="eventType != null and eventType != ''"> AND event_type = #{eventType} </if>
+            </script>
+            """)
+    long countEvents(@Param("projectId") String projectId, @Param("eventType") String eventType);
+
     // ---------------------------------------------------------------- export_jobs
 
     String EXPORT_COLUMNS = 

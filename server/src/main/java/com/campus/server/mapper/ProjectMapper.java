@@ -19,7 +19,8 @@ public interface ProjectMapper {
     // 另外文本块后面不能直接跟 `+ 字符串`（编译报"元素值必须为常量表达式"），
     // 所以这里统一用字符串拼接，不用文本块。
     String COLUMNS =
-            "id, owner_id, template_id, title, description, status, "
+            "id, owner_id, template_id, title, description, "
+          + "activity_type, cover_tone, cover_code, cover_title, status, "
           + "draft_document, draft_revision, public_slug, published_version_id, "
           + "publish_settings, created_at, updated_at, deleted_at ";
 
@@ -30,6 +31,9 @@ public interface ProjectMapper {
           + "</if>"
           + "<if test=\"status != null and status != ''\">"
           + " AND status = #{status} "
+          + "</if>"
+          + "<if test=\"activityType != null and activityType != ''\">"
+          + " AND activity_type = #{activityType} "
           + "</if>";
 
     String SEARCH_SQL_HEAD = "<script>SELECT " + COLUMNS + " FROM projects" + SEARCH_WHERE + " ORDER BY ";
@@ -44,6 +48,7 @@ public interface ProjectMapper {
     List<ProjectEntity> search(@Param("ownerId") String ownerId,
                                @Param("q") String q,
                                @Param("status") String status,
+                               @Param("activityType") String activityType,
                                @Param("sort") String sort,
                                @Param("limit") int limit,
                                @Param("offset") int offset);
@@ -51,7 +56,8 @@ public interface ProjectMapper {
     @Select("<script>SELECT COUNT(*) FROM projects" + SEARCH_WHERE + "</script>")
     long countSearch(@Param("ownerId") String ownerId,
                      @Param("q") String q,
-                     @Param("status") String status);
+                     @Param("status") String status,
+                     @Param("activityType") String activityType);
 
     @Select("SELECT " + COLUMNS + " FROM projects WHERE id = #{id} AND deleted_at IS NULL LIMIT 1")
     ProjectEntity findById(@Param("id") String id);
@@ -63,9 +69,11 @@ public interface ProjectMapper {
     int countBySlug(@Param("slug") String slug, @Param("excludeId") String excludeId);
 
     @Insert("""
-            INSERT INTO projects (id, owner_id, template_id, title, description, status,
+            INSERT INTO projects (id, owner_id, template_id, title, description,
+                                  activity_type, cover_tone, cover_code, cover_title, status,
                                   draft_document, draft_revision, publish_settings)
-            VALUES (#{id}, #{ownerId}, #{templateId}, #{title}, #{description}, #{status},
+            VALUES (#{id}, #{ownerId}, #{templateId}, #{title}, #{description},
+                    #{activityType}, #{coverTone}, #{coverCode}, #{coverTitle}, #{status},
                     #{draftDocument}, #{draftRevision}, #{publishSettings})
             """)
     int insert(ProjectEntity project);
@@ -73,12 +81,20 @@ public interface ProjectMapper {
     @Update("""
             UPDATE projects
                SET title = #{title},
-                   description = #{description}
+                   description = #{description},
+                   activity_type = #{activityType},
+                   cover_tone = #{coverTone},
+                   cover_code = #{coverCode},
+                   cover_title = #{coverTitle}
              WHERE id = #{id} AND deleted_at IS NULL
             """)
     int updateBasic(@Param("id") String id,
                     @Param("title") String title,
-                    @Param("description") String description);
+                    @Param("description") String description,
+                    @Param("activityType") String activityType,
+                    @Param("coverTone") String coverTone,
+                    @Param("coverCode") String coverCode,
+                    @Param("coverTitle") String coverTitle);
 
     /**
      * 乐观锁核心：只有 baseRevision 与服务端一致时才写。
@@ -142,4 +158,37 @@ public interface ProjectMapper {
 
     @Select("SELECT COUNT(*) FROM projects WHERE owner_id = #{ownerId} AND deleted_at IS NULL")
     long countByOwner(@Param("ownerId") String ownerId);
+
+    // ------------------------------------------------------------------------
+    // 公开活动列表：只查已发布、未删除、且还在开放时间窗内的项目。
+    // 时间窗放在 SQL 里做，避免把整表拉回内存再过滤。
+    // ------------------------------------------------------------------------
+    String PUBLIC_WHERE =
+            " WHERE deleted_at IS NULL AND status = 'published' "
+          + " AND public_slug IS NOT NULL "
+          + "<if test=\"q != null and q != ''\">"
+          + " AND (title LIKE CONCAT('%', #{q}, '%') OR cover_title LIKE CONCAT('%', #{q}, '%')) "
+          + "</if>"
+          + "<if test=\"activityType != null and activityType != ''\">"
+          + " AND activity_type = #{activityType} "
+          + "</if>";
+
+    String PUBLIC_COLUMNS =
+            "id, title, description, activity_type, cover_tone, cover_code, cover_title, "
+          + "status, draft_revision, public_slug, published_version_id, publish_settings, updated_at ";
+
+    @Select("<script>SELECT " + PUBLIC_COLUMNS + " FROM projects" + PUBLIC_WHERE
+            + " ORDER BY updated_at DESC, id ASC LIMIT #{limit} OFFSET #{offset}</script>")
+    List<ProjectEntity> searchPublic(@Param("q") String q,
+                                     @Param("activityType") String activityType,
+                                     @Param("limit") int limit,
+                                     @Param("offset") int offset);
+
+    @Select("<script>SELECT COUNT(*) FROM projects" + PUBLIC_WHERE + "</script>")
+    long countPublic(@Param("q") String q,
+                     @Param("activityType") String activityType);
+
+    /** 公开活动列表用：按 slug 取到项目后还要判是否仍在开放窗口内。 */
+    @Select("SELECT " + COLUMNS + " FROM projects WHERE public_slug = #{slug} AND deleted_at IS NULL LIMIT 1")
+    ProjectEntity findPublicBySlug(@Param("slug") String slug);
 }

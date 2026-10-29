@@ -16,6 +16,14 @@ public class ProjectEntity {
     private String templateId;
     private String title;
     private String description;
+    /** 活动类型，如 社团招新 / 投票评选；前端 ProjectRecord.type */
+    private String activityType;
+    /** 卡片配色主题，前端 ProjectRecord.coverTone */
+    private String coverTone;
+    /** 卡片角标文字，前端 ProjectRecord.coverCode */
+    private String coverCode;
+    /** 卡片大标题，前端 ProjectRecord.coverTitle */
+    private String coverTitle;
     /** draft | published | unpublished | archived */
     private String status;
     private JsonNode draftDocument;

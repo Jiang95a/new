@@ -7,8 +7,10 @@ info:
     公共活动读取和表单提交接口无需组织者登录。
     页面内容统一使用 PageDocument，AI 只返回 Proposal，用户确认后才能应用。
 servers:
-  - url: http://localhost:8000/api/v1
-    description: Local
+  - url: http://127.0.0.1:8080/api/v1
+    description: 本地后端（Spring Boot，server/）
+  - url: http://127.0.0.1:8000/api/v1
+    description: 本地智能体（FastAPI，agent/）
   - url: https://api.example.com/api/v1
     description: Production
 tags:
@@ -165,6 +167,21 @@ paths:
           in: query
           schema:
             $ref: "#/components/schemas/ProjectStatus"
+        - name: q
+          in: query
+          description: 标题/描述模糊搜索
+          schema:
+            type: string
+        - name: activityType
+          in: query
+          description: 按活动类型筛选（社团招新 / 讲座报名 / 活动签到 …）
+          schema:
+            type: string
+        - name: sort
+          in: query
+          description: 排序字段，例如 updatedAt、创建时间倒序
+          schema:
+            type: string
       responses:
         "200":
           description: Projects
@@ -401,6 +418,74 @@ paths:
                 $ref: "#/components/schemas/Error"
         default:
           $ref: "#/components/responses/Error"
+    patch:
+      tags: [Draft]
+      summary: 局部更新草稿（JSON Merge Patch 扩展）
+      description: |
+        只传要改的部分，不用回传整份文档。
+
+        合并规则：
+        - 对象：逐键递归合并，patch 里显式 `null` 表示删掉该键；
+        - 两侧都是「带 id 的对象数组」（如 `pages`、`blocks`）：**按 id 合并**，
+          patch 里出现的 id 逐字段合并、没出现的元素原样保留，
+          带 `"_deleted": true` 的元素被移除；
+        - 其余数组：整体替换。
+
+        合并完仍会过一遍 PageDocument schema 校验，所以 patch 写不坏文档。
+
+        示例：只改首页名字
+        ```json
+        { "baseRevision": 3, "patch": { "pages": [ { "id": "pg-xxx", "name": "新的首页" } ] } }
+        ```
+      operationId: patchDraft
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [patch]
+              properties:
+                baseRevision:
+                  type: [integer, "null"]
+                  minimum: 0
+                  description: 不给则用服务端当前版本，给了不一致会返回 409
+                patch:
+                  type: object
+                  description: 要合并进文档的对象
+      responses:
+        "200":
+          description: Patched
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    required: [revision, savedAt]
+                    properties:
+                      revision:
+                        type: integer
+                      savedAt:
+                        type: string
+                        format: date-time
+        "409":
+          description: Revision conflict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "422":
+          description: 合并后的文档不合法
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          $ref: "#/components/responses/Error"
 
   /projects/{projectId}/versions:
     parameters:
@@ -509,6 +594,56 @@ paths:
       responses:
         "204":
           description: Unpublished
+        default:
+          $ref: "#/components/responses/Error"
+
+  /public/activities:
+    get:
+      tags: [Public Activities]
+      summary: 公开活动列表（匿名可访问）
+      description: |
+        移动端首页/发现页的数据源，只返回已发布活动，字段走白名单
+        （**不含 draftDocument / ownerId**）。
+      operationId: listPublicActivities
+      parameters:
+        - name: q
+          in: query
+          description: 标题/描述模糊搜索
+          schema:
+            type: string
+        - name: activityType
+          in: query
+          description: 按活动类型筛选
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+      responses:
+        "200":
+          description: Published activities
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, pagination]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/PublicActivitySummary"
+                  pagination:
+                    $ref: "#/components/schemas/Pagination"
         default:
           $ref: "#/components/responses/Error"
 
@@ -659,6 +794,150 @@ paths:
                     $ref: "#/components/schemas/Pagination"
         default:
           $ref: "#/components/responses/Error"
+
+  /projects/{projectId}/analytics/summary:
+    parameters:
+      - $ref: "#/components/parameters/ProjectId"
+    get:
+      tags: [Submissions]
+      summary: 数据看板汇总
+      operationId: getAnalyticsSummary
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Summary
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: "#/components/schemas/AnalyticsSummary"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{projectId}/analytics/events:
+    parameters:
+      - $ref: "#/components/parameters/ProjectId"
+    get:
+      tags: [Submissions]
+      summary: 行为事件明细（分页）
+      operationId: listAnalyticsEvents
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: eventType
+          in: query
+          description: 例如 public_page_view、submission_succeeded、form_started
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 20
+      responses:
+        "200":
+          description: Events
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, pagination]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ActivityEvent"
+                  pagination:
+                    $ref: "#/components/schemas/Pagination"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /assets:
+    post:
+      tags: [Projects]
+      summary: 上传图片/附件
+      description: |
+        返回的 `url` 是**绝对地址**（如 `http://127.0.0.1:8080/api/v1/files/assets/<uid>/<file>.png`），
+        前端可以直接塞进 `<img src>`，不会因为跨端口打到 5173 上而 404。
+      operationId: uploadAsset
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "200":
+          description: Uploaded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    required: [assetId, objectKey, url, mimeType, sizeBytes]
+                    properties:
+                      assetId:
+                        type: string
+                        format: uuid
+                      objectKey:
+                        type: string
+                      url:
+                        type: string
+                        format: uri
+                      mimeType:
+                        type: string
+                      sizeBytes:
+                        type: integer
+        default:
+          $ref: "#/components/responses/Error"
+
+  /files/{objectKey}:
+    get:
+      tags: [Projects]
+      summary: 读取已上传文件（匿名可访问）
+      operationId: readFile
+      parameters:
+        - name: objectKey
+          in: path
+          required: true
+          description: 形如 assets/<uid>/<file>.png，**允许包含斜杠**
+          schema:
+            type: string
+      responses:
+        "200":
+          description: File bytes
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: 文件不存在
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /projects/{projectId}/exports:
     post:
@@ -1018,6 +1297,18 @@ components:
           type: string
         description:
           type: [string, "null"]
+        activityType:
+          type: [string, "null"]
+          description: 活动类型，未指定时由模板推导
+        coverTone:
+          type: [string, "null"]
+          description: 封面色调 photo / music / vote / checkin
+        coverCode:
+          type: [string, "null"]
+          description: 封面角标代号
+        coverTitle:
+          type: [string, "null"]
+          description: 封面标题，最多 160 字
         status:
           $ref: "#/components/schemas/ProjectStatus"
         draftRevision:
@@ -1037,6 +1328,96 @@ components:
           type: string
           format: date-time
         updatedAt:
+          type: string
+          format: date-time
+
+    PublicActivitySummary:
+      type: object
+      description: |
+        公开列表用的精简活动信息。**刻意不含 draftDocument / ownerId**，
+        避免未发布的内容被匿名请求拿到。
+      required: [slug, title, status, updatedAt]
+      properties:
+        slug:
+          type: string
+        title:
+          type: string
+        description:
+          type: [string, "null"]
+        activityType:
+          type: [string, "null"]
+        coverTone:
+          type: [string, "null"]
+        coverCode:
+          type: [string, "null"]
+        coverTitle:
+          type: [string, "null"]
+        status:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
+
+    AnalyticsSummary:
+      type: object
+      required:
+        - submissions
+        - validSubmissions
+        - pageViews
+        - publishedPages
+        - byDay
+        - byEventType
+        - formStarted
+        - conversionRate
+      properties:
+        submissions:
+          type: integer
+        validSubmissions:
+          type: integer
+        pageViews:
+          type: integer
+        publishedPages:
+          type: integer
+        byDay:
+          type: array
+          description: 按天聚合的提交与浏览，两条线合并到同一张表
+          items:
+            type: object
+            properties:
+              date:
+                type: string
+              submissions:
+                type: integer
+              views:
+                type: integer
+              count:
+                type: integer
+                description: submissions 的兼容别名
+        byEventType:
+          type: object
+          additionalProperties:
+            type: integer
+          description: 各事件类型的计数，例如 public_page_view / submission_succeeded
+        formStarted:
+          type: integer
+        conversionRate:
+          type: number
+          description: validSubmissions / formStarted，formStarted 为 0 时是 0
+
+    ActivityEvent:
+      type: object
+      required: [id, eventType, occurredAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        eventType:
+          type: string
+        pageId:
+          type: [string, "null"]
+        metadata:
+          description: 事件附加信息
+        occurredAt:
           type: string
           format: date-time
 

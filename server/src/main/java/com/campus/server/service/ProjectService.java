@@ -16,13 +16,17 @@ import com.campus.server.security.CurrentUser;
 import com.campus.server.support.Ids;
 import com.campus.server.support.JsonUtil;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * 项目 CRUD、草稿保存（乐观锁）、版本、发布、公开读取。
@@ -58,13 +62,19 @@ public class ProjectService {
 
     public Dtos.PagedResultHolder<Dtos.ProjectDto> list(String q, String status, String sort,
                                                         int page, int pageSize) {
+        return list(q, status, null, sort, page, pageSize);
+    }
+
+    public Dtos.PagedResultHolder<Dtos.ProjectDto> list(String q, String status, String activityType,
+                                                        String sort, int page, int pageSize) {
         String ownerId = CurrentUser.require().userId();
         int safePage = Math.max(page, 1);
         int safeSize = Math.min(Math.max(pageSize, 1), 100);
-        long total = projectMapper.countSearch(ownerId, q, status);
+        String type = blankToNull(activityType);
+        long total = projectMapper.countSearch(ownerId, q, status, type);
         List<ProjectEntity> rows = total == 0
                 ? List.of()
-                : projectMapper.search(ownerId, q, status, sort, safeSize, (safePage - 1) * safeSize);
+                : projectMapper.search(ownerId, q, status, type, sort, safeSize, (safePage - 1) * safeSize);
         List<Dtos.ProjectDto> data = rows.stream().map(this::toDto).toList();
         return new Dtos.PagedResultHolder<>(data, new Dtos.PageMeta(safePage, safeSize, total));
     }
@@ -99,6 +109,22 @@ public class ProjectService {
         project.setTitle(request.title().trim());
         project.setDescription(request.description());
         project.setStatus("draft");
+
+        // 封面四项：显式传了就用，没传就从模板 / 标题推导，
+        // 避免项目列表里的卡片一片空白。
+        TemplateEntity coverSource = null;
+        if (request.templateId() != null && !request.templateId().isBlank()) {
+            coverSource = templateMapper.findById(request.templateId());
+        }
+        project.setActivityType(firstNonBlank(request.activityType(),
+                coverSource == null ? null : coverSource.getName(),
+                "校园活动"));
+        project.setCoverTone(firstNonBlank(request.coverTone(),
+                toneOfCategory(coverSource == null ? null : coverSource.getCategory())));
+        project.setCoverCode(firstNonBlank(request.coverCode(),
+                codeOfCategory(coverSource == null ? null : coverSource.getCategory())));
+        project.setCoverTitle(firstNonBlank(request.coverTitle(), project.getTitle()));
+
         project.setDraftDocument(document);
         project.setDraftRevision(0L);
         project.setPublishSettings(JsonUtil.mapper().createObjectNode());
@@ -115,6 +141,11 @@ public class ProjectService {
         copy.setTemplateId(source.getTemplateId());
         copy.setTitle(request.title().trim());
         copy.setDescription(source.getDescription());
+        copy.setActivityType(source.getActivityType());
+        copy.setCoverTone(source.getCoverTone());
+        copy.setCoverCode(source.getCoverCode());
+        // 副本换了标题，封面大标题也跟着走；没给新标题时沿用原标题
+        copy.setCoverTitle(firstNonBlank(source.getCoverTitle(), request.title().trim()));
         copy.setStatus("draft");
         copy.setDraftDocument(source.getDraftDocument());
         copy.setDraftRevision(0L);
@@ -142,7 +173,21 @@ public class ProjectService {
         if (title.length() > 160) {
             throw BizException.invalid("标题最多 160 字");
         }
-        projectMapper.updateBasic(projectId, title, request.description());
+        String description = request.description() == null
+                ? project.getDescription()
+                : request.description();
+        // 封面字段：传 null 表示「保持不变」，传空串表示「清空回默认」
+        String coverTitle = request.coverTitle() == null
+                ? project.getCoverTitle()
+                : request.coverTitle();
+        if (coverTitle != null && coverTitle.length() > 160) {
+            throw BizException.invalid("封面标题最多 160 字");
+        }
+        projectMapper.updateBasic(projectId, title, description,
+                nullableOr(project.getActivityType(), request.activityType()),
+                nullableOr(project.getCoverTone(), request.coverTone()),
+                nullableOr(project.getCoverCode(), request.coverCode()),
+                coverTitle);
         return toDto(projectMapper.findById(projectId));
     }
 
@@ -182,6 +227,148 @@ public class ProjectService {
                     "文档已被修改，当前服务端版本是 " + project.getDraftRevision() + "，请刷新后再保存");
         }
         return new Dtos.SaveDraftResult(next, Ids.nowIso());
+    }
+
+    /**
+     * 局部更新草稿（RFC 7386 JSON Merge Patch 语义）。
+     *
+     * <p>为什么单独开一个 PATCH：编辑器每敲一个字都会触发一次保存，
+     * 整体 PUT 每条都要把整个文档（几十 KB）传上来，既费流量又容易互相覆盖。
+     * PATCH 只传「变了的那一小块」，例如：
+     * <pre>
+     * { "baseRevision": 7,
+     *   "patch": { "pages": [ { "id": "pg-1", "blocks": [ { "id": "blk-2", "props": { "text": "新文案" } } ] } ] } }
+     * </pre>
+     * 合并规则：对象逐键递归合并（patch 里值为 null 表示删掉这个键），
+     * 数组整体替换（数组里不做按 id 的智能合并 —— 太容易猜错，交给前端传完整数组）。
+     * 合并完仍然要过一遍 schema 校验，所以不会因为 patch 把文档写坏。
+     */
+    /**
+     * 合并规则（对 RFC 7386 的务实扩展）：
+     * <ul>
+     *   <li>对象：逐键递归合并，patch 里显式 null 表示删掉这个键；</li>
+     *   <li>两侧都是「带 id 的对象数组」：<b>按 id 合并</b>——patch 里出现的 id 逐字段合并，
+     *       没出现的元素原样保留，patch 里带 {@code "_deleted": true} 的元素被移除；</li>
+     *   <li>其余数组：整体替换。</li>
+     * </ul>
+     * 之所以不照搬「数组整体替换」，是因为前端改一个页面名就得把全部 pages（含所有 blocks）
+     * 完整回传，传输量随页面规模线性增长，而且漏传一个字段就会把内容删掉。
+     * <p>
+     * 合并完仍然要过一遍 schema 校验，所以不会因为 patch 把文档写坏。
+     */
+    @Transactional
+    public Dtos.SaveDraftResult patchDraft(String projectId, Dtos.PatchDraftRequest request) {
+        ProjectEntity project = loadOwned(projectId);
+        if (request.patch() == null || request.patch().isNull() || !request.patch().isObject()) {
+            throw new BizException(ErrorCode.PAGE_DOCUMENT_INVALID, "patch 必须是一个 JSON 对象");
+        }
+        if (request.baseRevision() != null && request.baseRevision() < 0) {
+            throw BizException.invalid("baseRevision 不能为负");
+        }
+        long base = request.baseRevision() == null ? project.getDraftRevision() : request.baseRevision();
+        if (request.baseRevision() != null && request.baseRevision() != project.getDraftRevision()) {
+            throw new BizException(ErrorCode.REVISION_CONFLICT,
+                    "文档已被修改，当前服务端版本是 " + project.getDraftRevision() + "，请刷新后再保存");
+        }
+
+        JsonNode current = project.getDraftDocument();
+        if (current == null || current.isNull()) {
+            current = JsonUtil.mapper().createObjectNode();
+        }
+        JsonNode merged = mergePatch(current.deepCopy(), request.patch());
+
+        documentValidator.validateOrThrow(merged);
+
+        long next = base + 1;
+        int updated = projectMapper.updateDraftWithRevision(projectId, merged, base, next);
+        if (updated == 0) {
+            throw new BizException(ErrorCode.REVISION_CONFLICT,
+                    "文档已被修改，请刷新后再保存");
+        }
+        return new Dtos.SaveDraftResult(next, Ids.nowIso());
+    }
+
+    /** 对象递归合并、id 数组按 id 合并、其余整体替换；patch 里显式 null 表示删除该键。 */
+    private static JsonNode mergePatch(JsonNode target, JsonNode patch) {
+        if (!patch.isObject()) {
+            if (patch.isArray() && target != null && target.isArray()) {
+                return mergeByIdArray((ArrayNode) target, (ArrayNode) patch);
+            }
+            return patch.deepCopy();
+        }
+        ObjectNode result = (target != null && target.isObject())
+                ? (ObjectNode) target.deepCopy()
+                : JsonUtil.mapper().createObjectNode();
+        patch.fields().forEachRemaining(entry -> {
+            String key = entry.getKey();
+            JsonNode value = entry.getValue();
+            if (value.isNull()) {
+                result.remove(key);
+            } else {
+                result.set(key, mergePatch(result.get(key), value));
+            }
+        });
+        return result;
+    }
+
+    /**
+     * 按 id 合并两个「对象数组」。只有一方不是「全是带 id 的对象」时退化成整体替换，
+     * 免得把 {@code pages} 和 {@code ["a","b"]} 这种形状不兼容的数组瞎合。
+     */
+    private static JsonNode mergeByIdArray(ArrayNode target, ArrayNode patch) {
+        if (!allHaveId(target) || !allHaveId(patch)) {
+            return patch.deepCopy();
+        }
+        Map<String, JsonNode> byId = new LinkedHashMap<>();
+        for (JsonNode item : target) {
+            byId.put(item.get("id").asText(), item.deepCopy());
+        }
+        List<String> removed = new ArrayList<>();
+        for (JsonNode item : patch) {
+            String id = item.get("id").asText();
+            JsonNode deleted = item.get("_deleted");
+            if (deleted != null && deleted.asBoolean(false)) {
+                removed.add(id);
+                continue;
+            }
+            JsonNode existing = byId.get(id);
+            byId.put(id, existing == null ? item.deepCopy() : mergePatch(existing, item));
+        }
+        removed.forEach(byId::remove);
+        // 保留原数组顺序：没被删的按原顺序，新出现的按 patch 里的顺序追加到末尾
+        ArrayNode out = JsonUtil.mapper().createArrayNode();
+        for (JsonNode item : target) {
+            JsonNode merged = byId.get(item.get("id").asText());
+            if (merged != null) {
+                out.add(merged);
+            }
+        }
+        for (JsonNode item : patch) {
+            String id = item.get("id").asText();
+            if (indexOfId(target, id) < 0 && byId.containsKey(id)) {
+                out.add(byId.get(id));
+            }
+        }
+        return out;
+    }
+
+    private static boolean allHaveId(ArrayNode array) {
+        for (JsonNode item : array) {
+            if (!item.isObject() || !item.hasNonNull("id") || item.get("id").asText().isBlank()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static int indexOfId(ArrayNode array, String id) {
+        for (int i = 0; i < array.size(); i++) {
+            JsonNode item = array.get(i);
+            if (item.isObject() && item.hasNonNull("id") && id.equals(item.get("id").asText())) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     // ================================================================ 版本
@@ -281,7 +468,39 @@ public class ProjectService {
 
         String publicStatus = publicStatus(project);
         return new Dtos.PublicActivityDto(slug, project.getTitle(), publicStatus,
-                document, project.getPublishSettings());
+                document, project.getPublishSettings(),
+                project.getActivityType(), project.getCoverTone(),
+                project.getCoverCode(), project.getCoverTitle());
+    }
+
+    /**
+     * 公开活动列表（不需要登录）。
+     * 只返回白名单字段：slug / 标题 / 封面四项 / 状态 / 更新时间。
+     * 绝不带 draftDocument、ownerId、publishedVersionId。
+     */
+    public Dtos.PagedResultHolder<Dtos.PublicActivitySummaryDto> listPublic(String q, String activityType,
+                                                                            int page, int pageSize) {
+        int safePage = Math.max(page, 1);
+        int safeSize = Math.min(Math.max(pageSize, 1), 50);
+        String type = blankToNull(activityType);
+        long total = projectMapper.countPublic(q, type);
+        if (total == 0) {
+            return new Dtos.PagedResultHolder<>(List.of(), new Dtos.PageMeta(safePage, safeSize, 0));
+        }
+        List<ProjectEntity> rows = projectMapper.searchPublic(q, type, safeSize, (safePage - 1) * safeSize);
+        List<Dtos.PublicActivitySummaryDto> data = rows.stream()
+                .map(p -> new Dtos.PublicActivitySummaryDto(
+                        p.getPublicSlug(),
+                        p.getTitle(),
+                        p.getDescription(),
+                        p.getActivityType(),
+                        p.getCoverTone(),
+                        p.getCoverCode(),
+                        p.getCoverTitle(),
+                        publicStatus(p),
+                        Ids.iso(p.getUpdatedAt())))
+                .toList();
+        return new Dtos.PagedResultHolder<>(data, new Dtos.PageMeta(safePage, safeSize, total));
     }
 
     /** 公开页的提交状态：published / closed / full / unpublished。 */
@@ -330,6 +549,10 @@ public class ProjectService {
                 project.getId(),
                 project.getTitle(),
                 project.getDescription(),
+                project.getActivityType(),
+                project.getCoverTone(),
+                project.getCoverCode(),
+                project.getCoverTitle(),
                 project.getStatus(),
                 project.getDraftRevision() == null ? 0 : project.getDraftRevision(),
                 project.getPublicSlug(),
@@ -441,4 +664,58 @@ public class ProjectService {
 
     @org.springframework.beans.factory.annotation.Autowired
     private com.campus.server.mapper.MiscMapper miscMapper;
+
+    // ================================================================ 封面字段推导
+    //
+    // 前端 ProjectRecord 里 type / coverTone / coverCode / coverTitle 是必填的，
+    // 但建项目时通常只给标题和模板。这里按模板 category 推导默认值，
+    // 保证列表接口永远不会返回 null 让卡片空白。
+
+    private static String toneOfCategory(String category) {
+        if (category == null) {
+            return "photo";
+        }
+        return switch (category) {
+            case "recruitment" -> "photo";
+            case "registration" -> "music";
+            case "vote" -> "vote";
+            case "checkin" -> "checkin";
+            default -> "photo";
+        };
+    }
+
+    private static String codeOfCategory(String category) {
+        if (category == null || category.isBlank()) {
+            return "CAMPUS";
+        }
+        return switch (category) {
+            case "recruitment" -> "RECRUIT";
+            case "registration" -> "SIGNUP";
+            case "vote" -> "VOTE";
+            case "checkin" -> "CHECKIN";
+            default -> "CAMPUS";
+        };
+    }
+
+    /** 返回第一个非空白字符串；全空返回 null。 */
+    private static String firstNonBlank(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String v : values) {
+            if (v != null && !v.isBlank()) {
+                return v;
+            }
+        }
+        return null;
+    }
+
+    /** 更新语义：请求值为 null 表示「不改」，非 null 就用请求值（含空串 → 置空）。 */
+    private static String nullableOr(String current, String incoming) {
+        return incoming == null ? current : (incoming.isBlank() ? null : incoming);
+    }
+
+    private static String blankToNull(String v) {
+        return (v == null || v.isBlank()) ? null : v;
+    }
 }

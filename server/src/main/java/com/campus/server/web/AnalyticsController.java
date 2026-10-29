@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
@@ -27,6 +28,19 @@ public class AnalyticsController {
     @GetMapping("/projects/{projectId}/analytics/summary")
     public ApiResponse.Envelope<Dtos.AnalyticsSummaryDto> summary(@PathVariable String projectId) {
         return ApiResponse.ok(analyticsService.summary(projectId));
+    }
+
+    /** 埋点明细：浏览 / 开始填写 / 提交等原始事件，分页。 */
+    @GetMapping("/projects/{projectId}/analytics/events")
+    public ApiResponse.PagedEnvelope<java.util.List<Dtos.ActivityEventDto>> events(
+            @PathVariable String projectId,
+            @RequestParam(required = false) String eventType,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int pageSize) {
+        Dtos.PagedResultHolder<Dtos.ActivityEventDto> result =
+                analyticsService.events(projectId, eventType, page, pageSize);
+        return ApiResponse.page(result.data(), result.meta().total(),
+                result.meta().page(), result.meta().pageSize());
     }
 
     /** 发起导出，V1 同步生成 CSV，返回的 status 直接就是 succeeded / failed。 */

@@ -38,6 +38,8 @@ app:
   web-origin: ${WEB_ORIGIN:http://localhost:5173}
   # 对外可访问的公开活动地址前缀（发布后拼成 publicUrl）
   public-base-url: ${PUBLIC_BASE_URL:http://localhost:5173/p}
+  # 后端自身的对外基地址：上传文件要返回绝对 URL，否则前端跨端口访问会 404
+  api-base-url: ${API_BASE_URL:http://127.0.0.1:8080}
   # 智能体服务地址：后端调用它，前端不要直连
   agent-base-url: ${AGENT_BASE_URL:http://127.0.0.1:8000}
   agent-timeout-seconds: 90

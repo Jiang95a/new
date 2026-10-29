@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -33,6 +34,22 @@ public class PublicController {
     @GetMapping("/activities/{slug}")
     public ApiResponse.Envelope<Dtos.PublicActivityDto> getActivity(@PathVariable String slug) {
         return ApiResponse.ok(projectService.getPublic(slug, true));
+    }
+
+    /**
+     * 公开活动列表：已发布的活动，任何人可看。
+     * 只返回白名单字段（slug / 标题 / 封面四项 / 状态 / 更新时间），不带草稿内容。
+     */
+    @GetMapping("/activities")
+    public ApiResponse.PagedEnvelope<java.util.List<Dtos.PublicActivitySummaryDto>> listActivities(
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) String activityType,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int pageSize) {
+        Dtos.PagedResultHolder<Dtos.PublicActivitySummaryDto> result =
+                projectService.listPublic(q, activityType, page, pageSize);
+        return ApiResponse.page(result.data(), result.meta().total(),
+                result.meta().page(), result.meta().pageSize());
     }
 
     /**

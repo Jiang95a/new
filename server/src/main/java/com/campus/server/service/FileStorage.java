@@ -56,9 +56,19 @@ public class FileStorage {
         return Files.exists(resolve(objectKey));
     }
 
-    /** 供前端直接访问的地址；本地部署就是 /api/v1/files/{objectKey}。 */
+    /**
+     * 供前端直接访问的地址。
+     *
+     * <p>前端跑在 5173、后端在 8080，如果返回相对路径 {@code /api/v1/files/xxx}，
+     * 浏览器会把这个请求发到前端端口，结果 404。所以这里拼成绝对地址，
+     * 基地址取 {@code app.public-base-url}（默认 http://127.0.0.1:8080）。
+     */
     public String publicUrl(String objectKey) {
-        return "/api/v1/files/" + objectKey.replace('\\', '/');
+        String base = props.getApiBaseUrl();
+        if (base == null || base.isBlank()) {
+            base = "http://127.0.0.1:8080";
+        }
+        return base.replaceAll("/+$", "") + "/api/v1/files/" + objectKey.replace('\\', '/');
     }
 
     /** 防止 ../../ 逃出上传目录。 */

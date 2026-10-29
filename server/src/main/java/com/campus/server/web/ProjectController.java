@@ -7,6 +7,7 @@ import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -37,10 +38,12 @@ public class ProjectController {
     public ApiResponse.PagedEnvelope<java.util.List<Dtos.ProjectDto>> list(
             @RequestParam(required = false) String q,
             @RequestParam(required = false) String status,
+            @RequestParam(required = false) String activityType,
             @RequestParam(required = false, defaultValue = "updated") String sort,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int pageSize) {
-        Dtos.PagedResultHolder<Dtos.ProjectDto> result = projectService.list(q, status, sort, page, pageSize);
+        Dtos.PagedResultHolder<Dtos.ProjectDto> result =
+                projectService.list(q, status, activityType, sort, page, pageSize);
         return ApiResponse.page(result.data(), result.meta().total(), result.meta().page(), result.meta().pageSize());
     }
 
@@ -89,6 +92,16 @@ public class ProjectController {
     public ApiResponse.Envelope<Dtos.SaveDraftResult> saveDraft(@PathVariable String projectId,
                                                                 @Valid @RequestBody Dtos.SaveDraftRequest request) {
         return ApiResponse.ok(projectService.saveDraft(projectId, request));
+    }
+
+    /**
+     * 局部更新草稿（自动保存用）：只传变了的那一小块，比整体 PUT 轻得多。
+     * 合并完仍会跑 schema 校验，所以不会把文档写坏。
+     */
+    @PatchMapping("/{projectId}/draft")
+    public ApiResponse.Envelope<Dtos.SaveDraftResult> patchDraft(@PathVariable String projectId,
+                                                                 @RequestBody Dtos.PatchDraftRequest request) {
+        return ApiResponse.ok(projectService.patchDraft(projectId, request));
     }
 
     // ================================================================ 版本

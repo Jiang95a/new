@@ -92,11 +92,21 @@ public class AssetController {
                 "sizeBytes", bytes.length);
     }
 
-    /** 文件读取：发布页和编辑器都可能直接 <img src>，所以放行。 */
-    @GetMapping("/files/{objectKey:.+}")
-    public ResponseEntity<byte[]> read(@PathVariable String objectKey) {
-        String key = objectKey.startsWith("/") ? objectKey.substring(1) : objectKey;
-        if (!storage.exists(key)) {
+    /**
+     * 文件读取：发布页和编辑器都可能直接 {@code <img src>}，所以放行。
+     *
+     * <p>{@code **} 而不是 {@code .+}：objectKey 是 {@code assets/<uid>/<file>.png} 这种多段路径，
+     * Spring 6 起 {@code {var:.+}} 只匹配单段，会把带斜杠的 key 判成 404。
+     */
+    @GetMapping("/files/**")
+    public ResponseEntity<byte[]> read(jakarta.servlet.http.HttpServletRequest request) {
+        String path = request.getRequestURI();
+        int at = path.indexOf("/files/");
+        String key = at >= 0 ? path.substring(at + "/files/".length()) : "";
+        if (key.startsWith("/")) {
+            key = key.substring(1);
+        }
+        if (key.isBlank() || !storage.exists(key)) {
             throw BizException.notFound("文件不存在");
         }
         byte[] bytes = storage.read(key);
