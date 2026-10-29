@@ -1,14 +1,21 @@
-# 环境与密钥
-.env
-.venv/
-venv/
+# Dependencies
+node_modules/
 
-# 数据（本地 SQLite，不要进仓库）
-data/
-*.db
-*.db-journal
+# Next.js build output
+.next/
+out/
+*.tsbuildinfo
+.turbo/
+.eslintcache
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
 
 # Python
+.venv/
+venv/
 __pycache__/
 *.py[cod]
 *.egg-info/
@@ -16,14 +23,19 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 
-# 编辑器
+# Local data and generated files
+data/
+*.db
+*.db-journal
+*.zip
+*.log
+
+# OS / editor
+.DS_Store
+Thumbs.db
 .idea/
 .vscode/
 *.swp
 
-# 杂项
-*.log
-get-pip.py
-test.py
-test1.py
-README.md
+# Local scratch area
+work/
