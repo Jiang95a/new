@@ -1,0 +1,155 @@
+:root {
+  --bg: #f4f6fa;
+  --surface: #ffffff;
+  --surface-soft: #f8f9fc;
+  --surface-raised: #ffffff;
+  --ink: #172033;
+  --ink-soft: #475467;
+  --muted: #7a8499;
+  --line: #e5e9f1;
+  --line-strong: #d5dbe7;
+  --primary: #2457d6;
+  --primary-strong: #1746bb;
+  --primary-soft: #edf2ff;
+  --mint: #17a673;
+  --mint-soft: #e9f8f2;
+  --amber: #e99717;
+  --amber-soft: #fff5df;
+  --violet: #7357d8;
+  --violet-soft: #f1edff;
+  --danger: #dc4c64;
+  --danger-soft: #fff0f3;
+  --shadow-sm: 0 1px 2px rgb(23 32 51 / 5%);
+  --shadow-md: 0 12px 34px rgb(28 41 70 / 8%);
+  --shadow-lg: 0 28px 70px rgb(28 41 70 / 13%);
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --font-sans:
+    Inter, 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+html,
+body {
+  min-height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  color: var(--ink);
+  background: var(--bg);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button {
+  color: inherit;
+}
+
+::selection {
+  color: var(--ink);
+  background: #cedbff;
+}
+
+.app-button {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 18px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    transform 160ms ease,
+    background 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.app-button:hover {
+  transform: translateY(-1px);
+}
+
+.app-button--primary {
+  color: #fff;
+  background: var(--primary);
+  box-shadow: 0 8px 18px rgb(36 87 214 / 22%);
+}
+
+.app-button--primary:hover {
+  background: var(--primary-strong);
+}
+
+.app-button--secondary {
+  color: var(--ink);
+  border-color: var(--line);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.app-button--secondary:hover {
+  border-color: var(--line-strong);
+  background: var(--surface-soft);
+}
+
+.app-icon-button {
+  display: inline-grid;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  place-items: center;
+  cursor: pointer;
+}
+
+.app-icon-button:hover {
+  background: var(--surface-soft);
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+@media (max-width: 640px) {
+  .app-button {
+    min-height: 42px;
+    padding: 0 14px;
+  }
+}

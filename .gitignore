@@ -1,9 +1,13 @@
 # Dependencies
 node_modules/
+pnpm-store/
+.pnpm-store/
 
-# Next.js build output
+# Frontend build output
 .next/
 out/
+dist/
+coverage/
 *.tsbuildinfo
 .turbo/
 .eslintcache
@@ -15,6 +19,7 @@ out/
 
 # Python
 .venv/
+.venv*/
 venv/
 __pycache__/
 *.py[cod]
@@ -27,6 +32,7 @@ __pycache__/
 data/
 *.db
 *.db-journal
+*.sqlite*
 *.zip
 *.log
 
@@ -34,8 +40,15 @@ data/
 .DS_Store
 Thumbs.db
 .idea/
-.vscode/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
 *.swp
 
 # Local scratch area
 work/
+*.tmp
+*.bak
+get-pip.py
