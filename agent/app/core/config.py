@@ -55,6 +55,31 @@ class Settings(BaseSettings):
     cors_origins: str = "*"         # 逗号分隔，如 "http://localhost:5173,http://127.0.0.1:3000"
     history_limit: int = 20         # 每次带给模型的历史消息条数上限
 
+    # ---- 视觉 / 多模态 ----
+    # 和主模型分开配：主模型可以就用 deepseek（便宜、擅长写方案），
+    # 但海报解析必须是一个能读图的模型（qwen-vl / glm-4v / gpt-4o）。
+    # 三个值留空 = 没配视觉模型，/poster/extract 会老实返回 503，不会瞎编。
+    vision_enabled: bool = True
+    vision_model: str = ""
+    vision_api_key: str = ""        # 留空则复用 LLM_API_KEY
+    vision_base_url: str = ""       # 留空则复用 LLM_BASE_URL
+    vision_timeout: int = 90
+    poster_max_bytes: int = 5 * 1024 * 1024   # 和前端上传限制保持一致
+
+    # ---- RAG ----
+    rag_enabled: bool = True
+    rag_top_k: int = 4
+    rag_min_score: float = 0.20     # 低于这个「内容分」的资料宁可不要，别把噪音喂给模型
+    rag_context_chars: int = 1800   # 注入提示词的资料总长度上限
+    embedding_backend: Literal["local", "api"] = "local"
+    embedding_model: str = ""       # embedding_backend=api 时才用，留空按 provider 取默认
+    embedding_dim: int = 512        # local 模式的哈希维度
+
+    # ---- AI 安全 ----
+    guard_enabled: bool = True
+    rate_limit_per_minute: int = 40     # 单 IP 每分钟最多几次 AI 调用
+    system_extra_max_chars: int = 300   # 客户端可控的附加要求，卡死上限
+
     # ---- 数据库 ----
     # sqlite：零依赖，开发与测试用；mysql：联调与部署用（需 pip install pymysql）
     db_backend: Literal["sqlite", "mysql"] = "sqlite"
@@ -101,6 +126,56 @@ class Settings(BaseSettings):
         return items or ["*"]
 
     @property
+    def cors_is_wildcard(self) -> bool:
+        return "*" in self.cors_list
+
+    @property
+    def allow_credentials(self) -> bool:
+        """通配符 + allow_credentials 是浏览器会直接拒绝的组合，别自欺欺人。
+
+        本项目前端不带 cookie（没有登录态），所以通配符时关掉 credentials 才是对的。
+        """
+        return not self.cors_is_wildcard
+
+    # ---- 能力开关：给 /health、自检和答辩看 ----
+    @property
+    def vision_ready(self) -> bool:
+        """视觉模型是否可用：要显式配置模型名，并且有 key（专属或复用主 key）。"""
+        return bool(self.vision_enabled and self.vision_model.strip() and self.vision_api_key_value)
+
+    @property
+    def vision_api_key_value(self) -> str:
+        return (self.vision_api_key or self.llm_api_key).strip()
+
+    @property
+    def vision_base_url_value(self) -> str:
+        return (self.vision_base_url or self.base_url).strip()
+
+    @property
+    def embedding_ready(self) -> bool:
+        if self.embedding_backend == "api":
+            return bool(self.llm_api_key.strip())
+        return True  # local 哈希向量不需要任何外部服务
+
+    def vision_summary(self) -> dict[str, object]:
+        return {
+            "enabled": self.vision_enabled,
+            "ready": self.vision_ready,
+            "model": self.vision_model or "（未配置）",
+            "base_url": self.vision_base_url_value,
+            "key_configured": bool(self.vision_api_key_value),
+        }
+
+    def rag_summary(self) -> dict[str, object]:
+        return {
+            "enabled": self.rag_enabled,
+            "embedding_backend": self.embedding_backend,
+            "embedding_ready": self.embedding_ready,
+            "top_k": self.rag_top_k,
+            "min_score": self.rag_min_score,
+        }
+
+    @property
     def has_key(self) -> bool:
         return bool(self.llm_api_key.strip())
 
@@ -125,6 +200,9 @@ class Settings(BaseSettings):
             "key_configured": self.has_key,
             "temperature": self.llm_temperature,
             "history_limit": self.history_limit,
+            "vision": self.vision_summary(),
+            "rag": self.rag_summary(),
+            "guard_enabled": self.guard_enabled,
             "db": self.db_summary(),
         }
 

@@ -31,10 +31,13 @@ from langchain_core.messages import (
 from langgraph.graph import END, START, StateGraph
 
 from app.core.config import get_settings
+from app.core.guard import sanitize_system_extra, screen_input, screen_output
 from app.core.prompts import build_system_prompt
 from app.schemas.chat_schema import ChatResponse, ToolCallTrace
+from app.services import audit
 from app.services.llm_client import build_llm
 from app.services.memory.chat_history import get_history
+from app.services.rag import knowledge_message
 from app.services.tools import ALL_TOOLS, TOOL_MAP
 
 logger = logging.getLogger(__name__)
@@ -166,6 +169,41 @@ def _make_graph(llm: Any, streaming: bool):
     return get_graph()
 
 
+def _prepare_messages(
+    message: str,
+    system_extra: str | None,
+    thread_id: str,
+) -> tuple[list[AnyMessage], list[str], int]:
+    """拼本轮要发给模型的完整消息列表，并返回（消息, 命中的护栏规则, 检索命中数）。
+
+    顺序很重要：人设 -> 参考资料 -> 历史 -> 本轮问题。
+    参考资料放在历史前面，是因为它描述的是"世界"，不是"对话"；
+    放在历史后面会让模型误以为那些资料是用户刚说的话。
+    """
+    settings = get_settings()
+
+    guard = sanitize_system_extra(system_extra)
+    flags: list[str] = list(guard.flags)
+    flags.extend(screen_input(message).flags)
+
+    messages: list[AnyMessage] = [SystemMessage(content=build_system_prompt(guard.text))]
+
+    hits = 0
+    if settings.rag_enabled:
+        try:
+            kb_text, matched = knowledge_message(message)
+        except Exception as exc:  # noqa: BLE001 - 检索挂了也不能让对话挂
+            logger.warning("RAG 检索失败，本轮不带资料：%s", exc)
+            kb_text, matched = "", []
+        if kb_text:
+            messages.append(SystemMessage(content=kb_text))
+            hits = len(matched)
+
+    messages.extend(_history_to_messages(thread_id))
+    messages.append(HumanMessage(content=message))
+    return messages, flags, hits
+
+
 # ---------------------------------------------------------------------------
 # 对外：一次性返回
 # ---------------------------------------------------------------------------
@@ -178,15 +216,26 @@ def chat(
     started = time.perf_counter()
     tid = thread_id or new_thread_id()
     history = get_history()
+    settings = get_settings()
 
     llm = build_llm(temperature=temperature) if temperature is not None else None
     graph = _make_graph(llm, streaming=False)
 
-    messages: list[AnyMessage] = [SystemMessage(content=build_system_prompt(system_extra))]
-    messages.extend(_history_to_messages(tid))
-    messages.append(HumanMessage(content=message))
+    messages, flags, rag_hits = _prepare_messages(message, system_extra, tid)
 
-    result = graph.invoke({"messages": messages}, config={"recursion_limit": RECURSION_LIMIT})
+    try:
+        result = graph.invoke({"messages": messages}, config={"recursion_limit": RECURSION_LIMIT})
+    except Exception as exc:
+        audit.log_call(
+            kind="chat",
+            thread_id=tid,
+            model=settings.model_name,
+            latency_ms=int((time.perf_counter() - started) * 1000),
+            ok=False,
+            flags=flags,
+            error=str(exc),
+        )
+        raise
 
     full: list[AnyMessage] = result["messages"]
     fresh = full[len(messages):]                 # 本轮新增的（工具消息 + AI 回复）
@@ -194,15 +243,30 @@ def chat(
     if not reply:
         reply = "（这一轮没有拿到有效回复，可能是工具调用次数到上限了。把问题拆小一点再问一次。）"
 
+    # 输出侧再过一遍：剥掉可执行标签、截断、检查有没有把系统提示词抄出来
+    screened = screen_output(reply)
+    reply = screened.text or reply
+    flags.extend(screened.flags)
+
     history.append(tid, "user", message)
     history.append(tid, "assistant", reply)
 
     latency = int((time.perf_counter() - started) * 1000)
+    audit.log_call(
+        kind="chat",
+        thread_id=tid,
+        model=settings.model_name,
+        latency_ms=latency,
+        ok=True,
+        flags=flags,
+    )
     return ChatResponse(
         thread_id=tid,
         reply=reply,
         tool_calls=_collect_traces(fresh),
         latency_ms=latency,
+        flags=flags,
+        rag_hits=rag_hits,
     )
 
 
@@ -221,12 +285,12 @@ def stream_chat(
     """
     tid = thread_id or new_thread_id()
     graph = _make_graph(None, streaming=True)
+    settings = get_settings()
 
-    messages: list[AnyMessage] = [SystemMessage(content=build_system_prompt(system_extra))]
-    messages.extend(_history_to_messages(tid))
-    messages.append(HumanMessage(content=message))
+    messages, flags, _rag_hits = _prepare_messages(message, system_extra, tid)
 
     collected: list[str] = []
+    started = time.perf_counter()
     try:
         for chunk, _meta in graph.stream(
             {"messages": messages},
@@ -249,3 +313,11 @@ def stream_chat(
         if reply:
             get_history().append(tid, "user", message)
             get_history().append(tid, "assistant", reply)
+            audit.log_call(
+                kind="stream",
+                thread_id=tid,
+                model=settings.model_name,
+                latency_ms=int((time.perf_counter() - started) * 1000),
+                ok=True,
+                flags=flags,
+            )

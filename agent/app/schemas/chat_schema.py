@@ -40,6 +40,9 @@ class ChatResponse(BaseModel):
     reply: str
     tool_calls: list[ToolCallTrace] = Field(default_factory=list)
     latency_ms: int = 0
+    """命中的护栏规则 + 检索命中数，前端可以显示「本次带了几条资料/拦了什么」。"""
+    flags: list[str] = Field(default_factory=list)
+    rag_hits: int = 0
 
 
 class HistoryResponse(BaseModel):

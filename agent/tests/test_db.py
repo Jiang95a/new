@@ -17,9 +17,21 @@ def test_dialect_mysql_translates():
     assert to_dialect("SELECT ? , ?", "mysql") == "SELECT %s , %s"
 
 
-def test_default_backend_is_sqlite():
-    assert init_db() == "sqlite"
-    assert backend_info()["backend"] == "sqlite"
+def test_default_backend_is_sqlite(monkeypatch):
+    """默认后端是 sqlite。
+
+    注意：这台机器的 agent/.env 里配了 DB_BACKEND=mysql，所以不能直接断言 init_db()。
+    这里构造一个**不读 .env 文件**的 Settings 来验证「默认值」，再验证当前环境自洽。
+    """
+    from app.core.config import Settings, get_settings
+
+    monkeypatch.delenv("DB_BACKEND", raising=False)
+    default = Settings(_env_file=None)
+    assert default.db_backend == "sqlite"
+
+    current = get_settings().db_backend
+    assert init_db() == current
+    assert backend_info()["backend"] == current
 
 
 def test_read_write_roundtrip():

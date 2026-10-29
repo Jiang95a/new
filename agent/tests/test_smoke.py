@@ -60,14 +60,17 @@ def test_calculate_rejects_code():
     assert "失败" in out
 
 
-def test_db_query_tool():
-    out = TOOL_MAP["query_signup_stats"].invoke({"activity_name": "招新"})
+def test_activity_stats_tool():
+    out = TOOL_MAP["get_activity_stats"].invoke({"keyword": "招新"})
     assert "已报名" in out
+    # 演示数据必须如实标注，不许冒充真实报名数
+    assert "演示数据" in out
 
 
-def test_db_query_missing():
-    out = TOOL_MAP["query_signup_stats"].invoke({"activity_name": "不存在的活动xyz"})
-    assert "没有找到" in out
+def test_activity_stats_missing():
+    out = TOOL_MAP["get_activity_stats"].invoke({"keyword": "不存在的活动xyz"})
+    assert "没有查到" in out
+    assert "不要" in out  # 明确要求模型别编数字
 
 
 def test_graph_loop_offline():

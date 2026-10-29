@@ -12,11 +12,12 @@ from __future__ import annotations
 import json
 import logging
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 
+from app.core.guard import get_rate_limiter
 from app.schemas.chat_schema import ChatRequest, ChatResponse, HistoryResponse
-from app.services import agent_service
+from app.services import agent_service, audit
 from app.services.llm_client import LLMFormatError, LLMNotConfigured
 from app.services.memory.chat_history import get_history
 
@@ -24,8 +25,21 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["chat"])
 
 
+def _check_rate(request: Request, kind: str) -> None:
+    """限流只卡花钱的接口。超了给明确状态码和重试时间，别让前端一直转圈。"""
+    client = request.client.host if request.client else "unknown"
+    allowed, wait = get_rate_limiter().check(f"{kind}:{client}")
+    if not allowed:
+        raise HTTPException(
+            status_code=429,
+            detail={"code": "RATE_LIMITED", "message": f"请求太频繁，{wait} 秒后再试"},
+            headers={"Retry-After": str(wait)},
+        )
+
+
 @router.post("/chat", response_model=ChatResponse, summary="一问一答")
-def chat(req: ChatRequest) -> ChatResponse:
+def chat(req: ChatRequest, request: Request) -> ChatResponse:
+    _check_rate(request, "chat")
     try:
         return agent_service.chat(
             message=req.message,
@@ -34,17 +48,22 @@ def chat(req: ChatRequest) -> ChatResponse:
             temperature=req.temperature,
         )
     except LLMNotConfigured as exc:
+        audit.log_call(kind="chat", thread_id=req.thread_id or "", ok=False, error=str(exc))
         raise HTTPException(
             status_code=503,
             detail={"code": "AI_NOT_CONFIGURED", "message": str(exc)},
         ) from exc
     except LLMFormatError as exc:
+        audit.log_call(kind="chat", thread_id=req.thread_id or "", ok=False, error=str(exc))
         raise HTTPException(
             status_code=502,
             detail={"code": "AI_FORMAT_ERROR", "message": str(exc)},
         ) from exc
+    except HTTPException:
+        raise
     except Exception as exc:  # noqa: BLE001
         logger.exception("chat failed")
+        audit.log_call(kind="chat", thread_id=req.thread_id or "", ok=False, error=str(exc))
         raise HTTPException(
             status_code=502,
             detail={"code": "AI_FAILED", "message": f"AI 服务异常：{exc}"},
@@ -52,12 +71,13 @@ def chat(req: ChatRequest) -> ChatResponse:
 
 
 @router.post("/chat/stream", summary="流式回答（SSE）")
-def chat_stream(req: ChatRequest) -> StreamingResponse:
+def chat_stream(req: ChatRequest, request: Request) -> StreamingResponse:
     """每行一个 SSE 事件：data: {"delta": "..."}，最后一行 data: [DONE]。
 
     注意：这个端点用普通 def，但返回的是生成器。FastAPI 会把整个生成过程放在线程池里跑，
     不会阻塞事件循环——这正是我们想要的（模型调用是阻塞的）。
     """
+    _check_rate(request, "stream")
 
     def event_stream():
         try:
@@ -69,10 +89,10 @@ def chat_stream(req: ChatRequest) -> StreamingResponse:
                 yield f"data: {json.dumps({'delta': piece}, ensure_ascii=False)}\n\n"
             yield "data: [DONE]\n\n"
         except LLMNotConfigured as exc:
-            yield f"data: {json.dumps({'error': str(exc)}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'error': str(exc), 'code': 'AI_NOT_CONFIGURED'}, ensure_ascii=False)}\n\n"
         except Exception as exc:  # noqa: BLE001
             logger.exception("stream failed")
-            yield f"data: {json.dumps({'error': f'流式失败：{exc}'}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'error': f'流式失败：{exc}', 'code': 'AI_FAILED'}, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(
         event_stream(),

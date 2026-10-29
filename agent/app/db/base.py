@@ -48,6 +48,48 @@ SQLITE_DDL: list[str] = [
         capacity INTEGER NOT NULL DEFAULT 0
     )
     """,
+    # ---- 以下三张是补上的：知识库 / 活动统计快照 / AI 调用审计 ----
+    """
+    CREATE TABLE IF NOT EXISTS kb_chunks (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        chash      TEXT    NOT NULL UNIQUE,
+        doc_id     TEXT    NOT NULL,
+        title      TEXT    NOT NULL,
+        heading    TEXT    NOT NULL DEFAULT '',
+        scene      TEXT    NOT NULL DEFAULT '',
+        kind       TEXT    NOT NULL DEFAULT '',
+        content    TEXT    NOT NULL,
+        vector     TEXT    NOT NULL,
+        dim        INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_kb_scene ON kb_chunks (scene, kind)",
+    """
+    CREATE TABLE IF NOT EXISTS activity_stats (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        slug       TEXT    NOT NULL UNIQUE,
+        title      TEXT    NOT NULL,
+        signups    INTEGER NOT NULL DEFAULT 0,
+        capacity   INTEGER NOT NULL DEFAULT 0,
+        is_demo    INTEGER NOT NULL DEFAULT 0,
+        synced_at  TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS ai_call_logs (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        thread_id  TEXT    NOT NULL DEFAULT '',
+        kind       TEXT    NOT NULL,
+        model      TEXT    NOT NULL DEFAULT '',
+        latency_ms INTEGER NOT NULL DEFAULT 0,
+        ok         INTEGER NOT NULL DEFAULT 1,
+        flags      TEXT    NOT NULL DEFAULT '',
+        error      TEXT    NOT NULL DEFAULT '',
+        created_at TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_logs_created ON ai_call_logs (id)",
 ]
 
 # 注意：MySQL 里 utf8 只有 3 字节，中文表情和生僻字会存不进去，必须 utf8mb4。
@@ -70,12 +112,63 @@ MYSQL_DDL: list[str] = [
         capacity INT          NOT NULL DEFAULT 0
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """,
+    # 向量存成 JSON 文本：语料只有几十条，Python 里算余弦完全够用，
+    # 不值得为了这一点数据先上一套向量数据库（多一个服务就多一个挂的地方）。
+    """
+    CREATE TABLE IF NOT EXISTS kb_chunks (
+        id         BIGINT AUTO_INCREMENT PRIMARY KEY,
+        chash      VARCHAR(64)  NOT NULL UNIQUE,
+        doc_id     VARCHAR(128) NOT NULL,
+        title      VARCHAR(255) NOT NULL,
+        heading    VARCHAR(255) NOT NULL DEFAULT '',
+        scene      VARCHAR(32)  NOT NULL DEFAULT '',
+        kind       VARCHAR(32)  NOT NULL DEFAULT '',
+        content    MEDIUMTEXT   NOT NULL,
+        vector     MEDIUMTEXT   NOT NULL,
+        dim        INT          NOT NULL DEFAULT 0,
+        updated_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        KEY idx_kb_scene (scene, kind)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS activity_stats (
+        id         BIGINT AUTO_INCREMENT PRIMARY KEY,
+        slug       VARCHAR(128) NOT NULL UNIQUE,
+        title      VARCHAR(255) NOT NULL,
+        signups    INT          NOT NULL DEFAULT 0,
+        capacity   INT          NOT NULL DEFAULT 0,
+        is_demo    TINYINT      NOT NULL DEFAULT 0,
+        synced_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS ai_call_logs (
+        id         BIGINT AUTO_INCREMENT PRIMARY KEY,
+        thread_id  VARCHAR(64)  NOT NULL DEFAULT '',
+        kind       VARCHAR(32)  NOT NULL,
+        model      VARCHAR(128) NOT NULL DEFAULT '',
+        latency_ms INT          NOT NULL DEFAULT 0,
+        ok         TINYINT      NOT NULL DEFAULT 1,
+        flags      VARCHAR(255) NOT NULL DEFAULT '',
+        error      VARCHAR(500) NOT NULL DEFAULT '',
+        created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        KEY idx_logs_created (id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """,
 ]
 
 DEMO_ACTIVITIES = [
     ("摄影社招新", 37, 60),
     ("羽毛球友谊赛", 24, 32),
     ("周六图书馆志愿者", 11, 20),
+]
+
+# 活动统计快照：后端把 projects / form_submissions 汇总后同步进来，agent 只读。
+# is_demo=1 的每一行都会在回答里如实标注「演示数据」——宁可显得寒酸，也不许编。
+DEMO_ACTIVITY_STATS = [
+    ("photo-club-2026", "光影摄影社 · 2026 秋季招新", 126, 200, 1),
+    ("voice-vote", "校园歌手大赛人气投票", 238, 0, 1),
+    ("volunteer-2026", "迎新志愿者信息收集", 64, 80, 1),
 ]
 
 _SAFE_IDENT = re.compile(r"^[A-Za-z0-9_]{1,64}$")
@@ -228,14 +321,25 @@ def init_db() -> str:
     backend = settings.db_backend
 
     if backend == "mysql":
-        ddl, seed = MYSQL_DDL, "INSERT IGNORE INTO activities (name, signups, capacity) VALUES (?, ?, ?)"
+        ddl = MYSQL_DDL
+        seed = "INSERT IGNORE INTO activities (name, signups, capacity) VALUES (?, ?, ?)"
+        seed_stats = (
+            "INSERT IGNORE INTO activity_stats (slug, title, signups, capacity, is_demo) "
+            "VALUES (?, ?, ?, ?, ?)"
+        )
     else:
-        ddl, seed = SQLITE_DDL, "INSERT OR IGNORE INTO activities (name, signups, capacity) VALUES (?, ?, ?)"
+        ddl = SQLITE_DDL
+        seed = "INSERT OR IGNORE INTO activities (name, signups, capacity) VALUES (?, ?, ?)"
+        seed_stats = (
+            "INSERT OR IGNORE INTO activity_stats (slug, title, signups, capacity, is_demo) "
+            "VALUES (?, ?, ?, ?, ?)"
+        )
 
     with get_conn() as conn:
         for stmt in ddl:
             conn.execute(stmt)
         conn.executemany(seed, DEMO_ACTIVITIES)
+        conn.executemany(seed_stats, DEMO_ACTIVITY_STATS)
     return backend
 
 

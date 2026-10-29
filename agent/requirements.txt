@@ -1,5 +1,11 @@
 # 依赖清单：pip install -r requirements.txt
 # 版本是在这台机器上实测可用的，装不上就把 >= 后面的数字删掉，用最新版
+#
+# 刻意不引入的依赖（都是我自己实现的，少一个依赖少一个挂的地方）：
+#   mcp        —— MCP 协议自己实现了（app/mcp/），initialize/tools/list/tools/call 够用
+#   chromadb   —— 向量就存在 kb_chunks.vector 里，34 块语料全表扫
+#   numpy      —— 余弦相似度用纯 Python 算，512 维不需要矩阵库
+#   python-multipart —— /poster/extract 收原始二进制和 data URL，不需要表单解析
 
 langchain>=1.4.7
 langchain-core>=1.7.0
