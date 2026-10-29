@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useEditorStore } from '@/stores/editor'
@@ -176,7 +176,7 @@ function dismissSuggestion(id: string): void {
         <button type="button" class="btn btn--sm btn--ghost" @click="refreshStatus">重新检测</button>
       </div>
       <p class="hint">
-        后端 agent_first 启动后（默认 8000 端口）这里会变绿。连不上也照样能编辑、
+        后端 agent 启动后（默认 8000 端口）这里会变绿。连不上也照样能编辑、
         能用本地规则生成和建议，只是回答没那么聪明。
       </p>
     </div>

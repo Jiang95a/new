@@ -1,4 +1,4 @@
-# 前端开发流程
+﻿# 前端开发流程
 
 ## 1. 本轮目标
 
@@ -24,7 +24,7 @@
 | VSCode | 最新稳定版 |
 | 浏览器 | Chrome 或 Edge 最新版 |
 
-VSCode 打开整个仓库根目录，不要只打开 `apps/web`，这样 Git、文档和 Python 服务可以一起查看。
+VSCode 打开整个仓库根目录，不要只打开 `web`，这样 Git、文档和 Python 服务可以一起查看。
 
 项目固定使用 `pnpm@11.19.0`。如果终端提示 `pnpm` 不是可识别的命令，先在 PowerShell 执行：
 
@@ -40,7 +40,7 @@ pnpm --version
 npm install -g pnpm@11.19.0
 ```
 
-安装后关闭并重新打开终端，再回到 `apps/web` 执行 `pnpm install`。
+安装后关闭并重新打开终端，再回到 `web` 执行 `pnpm install`。
 
 ### 推荐插件
 
@@ -56,7 +56,7 @@ VSCode 会根据 `.vscode/extensions.json` 提示安装：
 ## 3. 第一次启动
 
 ```bash
-cd apps/web
+cd web
 corepack pnpm install
 corepack pnpm dev
 ```
@@ -98,7 +98,7 @@ git switch -c feat/页面或功能名
 ### 提交前检查
 
 ```bash
-cd apps/web
+cd web
 pnpm format:check
 pnpm typecheck
 pnpm build
@@ -205,7 +205,7 @@ chore: 更新前端依赖
 ## 6. 目录职责
 
 ```text
-apps/web/
+web/
 ├── src/views/WorkshopView.vue        编辑器主页面
 ├── src/components/editor/           画布、页面、组件库和属性面板
 ├── src/components/modals/           创建、预览、发布和质量检查

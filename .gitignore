@@ -1,5 +1,7 @@
 # Dependencies
 node_modules/
+pnpm-store/
+.pnpm-store/
 
 # Frontend build output
 .next/
@@ -17,6 +19,7 @@ coverage/
 
 # Python
 .venv/
+.venv*/
 venv/
 __pycache__/
 *.py[cod]
@@ -29,6 +32,7 @@ __pycache__/
 data/
 *.db
 *.db-journal
+*.sqlite*
 *.zip
 *.log
 
@@ -45,3 +49,6 @@ Thumbs.db
 
 # Local scratch area
 work/
+*.tmp
+*.bak
+get-pip.py

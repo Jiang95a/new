@@ -1,4 +1,4 @@
-{
+﻿{
   "version": "2.0.0",
   "tasks": [
     {
@@ -7,7 +7,7 @@
       "command": "corepack",
       "args": ["pnpm", "install"],
       "options": {
-        "cwd": "${workspaceFolder}/apps/web"
+        "cwd": "${workspaceFolder}/web"
       },
       "problemMatcher": []
     },
@@ -17,7 +17,7 @@
       "command": "corepack",
       "args": ["pnpm", "dev"],
       "options": {
-        "cwd": "${workspaceFolder}/apps/web"
+        "cwd": "${workspaceFolder}/web"
       },
       "problemMatcher": []
     },
@@ -27,7 +27,7 @@
       "command": "corepack",
       "args": ["pnpm", "typecheck"],
       "options": {
-        "cwd": "${workspaceFolder}/apps/web"
+        "cwd": "${workspaceFolder}/web"
       },
       "group": "test",
       "problemMatcher": "$tsc"
@@ -38,7 +38,7 @@
       "command": "corepack",
       "args": ["pnpm", "format:check"],
       "options": {
-        "cwd": "${workspaceFolder}/apps/web"
+        "cwd": "${workspaceFolder}/web"
       },
       "group": "test",
       "problemMatcher": []
@@ -49,7 +49,7 @@
       "command": "corepack",
       "args": ["pnpm", "build"],
       "options": {
-        "cwd": "${workspaceFolder}/apps/web"
+        "cwd": "${workspaceFolder}/web"
       },
       "group": {
         "kind": "build",

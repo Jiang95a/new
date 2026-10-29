@@ -1,4 +1,4 @@
-$ErrorActionPreference = "Stop"
+﻿$ErrorActionPreference = "Stop"
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 Set-Location $repoRoot
@@ -25,7 +25,7 @@ $paths = @(
     ".gitignore",
     "README.md",
     "docs",
-    "apps/web",
+    "web",
     "scripts"
 )
 

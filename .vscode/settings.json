@@ -1,4 +1,4 @@
-{
+﻿{
   "editor.defaultFormatter": "esbenp.prettier-vscode",
   "editor.formatOnSave": true,
   "editor.codeActionsOnSave": {
@@ -7,7 +7,7 @@
   "files.eol": "\n",
   "files.insertFinalNewline": true,
   "files.trimTrailingWhitespace": true,
-  "typescript.tsdk": "apps/web/node_modules/typescript/lib",
+  "typescript.tsdk": "web/node_modules/typescript/lib",
   "typescript.enablePromptUseWorkspaceTsdk": true,
   "search.exclude": {
     "**/.git": true,

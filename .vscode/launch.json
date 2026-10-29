@@ -1,4 +1,4 @@
-{
+﻿{
   "version": "0.2.0",
   "configurations": [
     {
@@ -7,7 +7,7 @@
       "request": "launch",
       "runtimeExecutable": "corepack",
       "runtimeArgs": ["pnpm", "dev"],
-      "cwd": "${workspaceFolder}/apps/web",
+      "cwd": "${workspaceFolder}/web",
       "console": "integratedTerminal",
       "skipFiles": ["<node_internals>/**"],
       "serverReadyAction": {

@@ -1,7 +1,7 @@
-/**
+﻿/**
  * 智能体 HTTP 客户端。
  *
- * 后端（agent_first，FastAPI）目前只暴露通用聊天能力：
+ * 后端（agent，FastAPI）目前只暴露通用聊天能力：
  *   GET  /health
  *   POST /chat            {message, thread_id?, system_extra?, temperature?}
  *   POST /chat/stream     SSE
