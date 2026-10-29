@@ -22,6 +22,9 @@
         <java.version>21</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <jjwt.version>0.12.6</jjwt.version>
+        <!-- Lombok 显式锁版本：多版本共存时 IDEA 容易误用旧版，导致
+             com.sun.tools.javac.code.TypeTag :: UNKNOWN。1.18.46 起正式支持 JDK 21。 -->
+        <lombok.version>1.18.46</lombok.version>
     </properties>
 
     <dependencies>
