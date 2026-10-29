@@ -1,0 +1,32 @@
+### 构建产物 ###
+target/
+build/
+!.mvn/wrapper/maven-wrapper.jar
+
+### IntelliJ IDEA ###
+.idea/
+*.iws
+*.iml
+*.ipr
+
+### VS Code / Eclipse ###
+.vscode/
+.settings/
+.classpath
+.project
+
+### 运行时产物 ###
+# 上传的图片和导出的 CSV 是「数据」不是「代码」，不进仓库
+uploads/
+logs/
+*.log
+
+### 本地凭证 / 临时文件 ###
+.env
+.env.local
+.testtoken
+*.tmp
+
+### OS ###
+.DS_Store
+Thumbs.db

@@ -1,0 +1,43 @@
+package com.campus.server.common;
+
+import lombok.Getter;
+import org.springframework.http.HttpStatus;
+
+/**
+ * 统一错误码。与 docs/api/openapi.yaml 的 Error.code 枚举一一对应。
+ *
+ * <p>前端按 code 分流（401 跳登录、409 提示冲突重试），不要按 message 匹配。
+ */
+@Getter
+public enum ErrorCode {
+
+    INVALID_INPUT(HttpStatus.BAD_REQUEST, "参数不合法"),
+    UNAUTHENTICATED(HttpStatus.UNAUTHORIZED, "未登录或登录已过期"),
+    FORBIDDEN(HttpStatus.FORBIDDEN, "没有权限执行该操作"),
+    NOT_FOUND(HttpStatus.NOT_FOUND, "资源不存在"),
+    REVISION_CONFLICT(HttpStatus.CONFLICT, "文档版本冲突，请先拉取最新版本"),
+    SLUG_CONFLICT(HttpStatus.CONFLICT, "该访问路径已被占用"),
+    SUBMISSION_CLOSED(HttpStatus.CONFLICT, "活动已关闭，不再接受提交"),
+    DUPLICATE_SUBMISSION(HttpStatus.CONFLICT, "你已经提交过了"),
+    FILE_TOO_LARGE(HttpStatus.PAYLOAD_TOO_LARGE, "文件超过大小限制"),
+    PAGE_DOCUMENT_INVALID(HttpStatus.UNPROCESSABLE_ENTITY, "页面文档结构不合法"),
+    RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "操作过于频繁，请稍后再试"),
+    AGENT_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "智能体服务暂不可用，请先手动创建或使用模板"),
+    INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "服务器内部错误");
+
+    private final HttpStatus status;
+    private final String defaultMessage;
+
+    public HttpStatus getStatus() {
+        return status;
+    }
+
+    public String getDefaultMessage() {
+        return defaultMessage;
+    }
+
+    ErrorCode(HttpStatus status, String defaultMessage) {
+        this.status = status;
+        this.defaultMessage = defaultMessage;
+    }
+}

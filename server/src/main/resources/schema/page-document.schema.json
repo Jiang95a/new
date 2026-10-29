@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://campus.local/schema/page-document.schema.json",
+  "title": "PageDocument",
+  "description": "前端的 Doc 结构（web/src/types/editor.ts）。后端以此为准落库；openapi.yaml 里的旧版本待三端统一后替换。",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["title", "pages"],
+  "properties": {
+    "id": { "type": "string" },
+    "title": { "type": "string", "maxLength": 160 },
+    "slug": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+    "theme": { "$ref": "#/$defs/theme" },
+    "meta": { "$ref": "#/$defs/meta" },
+    "pages": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 10,
+      "items": { "$ref": "#/$defs/page" }
+    },
+    "createdAt": { "type": ["integer", "string"] },
+    "updatedAt": { "type": ["integer", "string"] },
+    "published": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "required": ["url", "slug"],
+          "properties": {
+            "url": { "type": "string" },
+            "slug": { "type": "string" },
+            "at": { "type": ["integer", "string"] }
+          },
+          "additionalProperties": true
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "theme": {
+      "type": "object",
+      "required": ["primary", "accent", "bg", "text"],
+      "properties": {
+        "primary": { "type": "string" },
+        "accent": { "type": "string" },
+        "bg": { "type": "string" },
+        "text": { "type": "string" },
+        "radius": { "type": "number", "minimum": 0, "maximum": 64 },
+        "fontScale": { "type": "number", "minimum": 0.5, "maximum": 2 },
+        "spacing": { "type": "number", "minimum": 0, "maximum": 3 },
+        "buttonStyle": { "enum": ["solid", "gradient", "outline"] },
+        "font": { "enum": ["sans", "serif", "round"] }
+      },
+      "additionalProperties": true
+    },
+    "meta": {
+      "type": "object",
+      "properties": {
+        "org": { "type": "string" },
+        "startAt": { "type": "string" },
+        "place": { "type": "string" },
+        "deadline": { "type": "string" },
+        "capacity": { "type": "integer", "minimum": 0 },
+        "contact": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "page": {
+      "type": "object",
+      "required": ["id", "blocks"],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string", "maxLength": 80 },
+        "role": { "enum": ["home", "content", "form", "success"] },
+        "bg": { "type": "string" },
+        "blocks": {
+          "type": "array",
+          "maxItems": 80,
+          "items": { "$ref": "#/$defs/block" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "block": {
+      "type": "object",
+      "required": ["id", "type"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": {
+          "enum": [
+            "nav", "banner", "heading", "text", "image", "infoCard", "button",
+            "form", "radio", "checkbox", "qrcode", "divider", "countdown"
+          ]
+        },
+        "props": { "type": "object" },
+        "style": {
+          "type": "object",
+          "properties": {
+            "bg": { "type": "string" },
+            "paddingX": { "type": "number" },
+            "paddingY": { "type": "number" },
+            "radius": { "type": "number" },
+            "align": { "enum": ["left", "center", "right"] }
+          },
+          "additionalProperties": true
+        },
+        "hidden": { "type": "boolean" }
+      },
+      "additionalProperties": true
+    }
+  }
+}
