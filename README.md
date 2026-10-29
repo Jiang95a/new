@@ -66,7 +66,10 @@ corepack pnpm dev
 
 - 前端已迁移为 Vue 3 + Vite + TypeScript + Pinia。
 - 编辑器支持多页面 PageDocument、13 类受控组件、属性修改、实时画布预览、撤销重做、本地保存、发布二维码和静态页导出。
-- 智能体第一步：完成 FastAPI 智能体基础目录、聊天路由、服务层、记忆和工具模块的初始结构，离线自检 5/5、单元测试 9/9 通过。
+- 智能体：对话 + 工具调用（9 个，含出方案/校验方案）+ **RAG 知识库检索** + **海报多模态解析** + **MCP（stdio/HTTP）** + **AI 护栏与审计**。
+  - 离线自检 8/8，单元测试 98 条全过；deepseek 出方案、qwen3.8-max 读海报都实测过。
+  - 新增接口：`POST /poster/extract`、`POST /kb/search`、`GET /kb/stats`、`POST /kb/rebuild`、`GET /mcp/manifest`、`POST /mcp/rpc`、`GET /audit/logs`。详见 [`agent/README.md`](./agent/README.md)。
+- 前端已接上：创建弹窗的「上传海报」会真调视觉模型预填字段（认不出的留空，不编），AI 面板会显示本轮带了几条资料、调了什么工具。
 - 后端：未开始。
 
 ## 约定
