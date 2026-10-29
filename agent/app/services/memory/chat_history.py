@@ -1,7 +1,10 @@
-"""聊天记录存取（SQLite）。
+"""聊天记录存取。
 
 只做三件事：追加、按会话读最近 N 条、清空。
 不做摘要、不做向量检索——那是「变动」的部分。
+
+后半句别省：**同样的代码，SQLite 和 MySQL 都能跑。**
+方言翻译在 app/db/base.py 里，这里只写 ? 占位符。
 
 为什么聊天记录不放在 LangGraph 的 checkpoint 里：
 checkpoint 的职责是「图执行到哪一步了」，用来续跑和回放；
@@ -36,28 +39,27 @@ class ChatHistory:
         params: list[object] = [thread_id]
         if limit and limit > 0:
             sql += " LIMIT ?"
-            params.append(limit)
+            params.append(int(limit))
 
         with get_conn() as conn:
-            rows = conn.execute(sql, params).fetchall()
+            rows = conn.fetchall(sql, params)
 
-        # 上面是倒序取的（为了拿到"最近"），这里翻回正序
+        # 上面是倒序取的（为了拿到「最近」），这里翻回正序
         return [
             ChatMessage(role=row["role"], content=row["content"]) for row in reversed(rows)
         ]
 
     def clear(self, thread_id: str) -> int:
         with get_conn() as conn:
-            cur = conn.execute("DELETE FROM messages WHERE thread_id = ?", (thread_id,))
-            return cur.rowcount or 0
+            return conn.execute("DELETE FROM messages WHERE thread_id = ?", (thread_id,))
 
     def threads(self, limit: int = 20) -> list[str]:
         with get_conn() as conn:
-            rows = conn.execute(
-                "SELECT thread_id, MAX(id) AS last FROM messages "
-                "GROUP BY thread_id ORDER BY last DESC LIMIT ?",
-                (limit,),
-            ).fetchall()
+            rows = conn.fetchall(
+                "SELECT thread_id, MAX(id) AS last_id FROM messages "
+                "GROUP BY thread_id ORDER BY last_id DESC LIMIT ?",
+                (int(limit),),
+            )
         return [row["thread_id"] for row in rows]
 
 

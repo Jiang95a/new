@@ -44,17 +44,18 @@ def check_config() -> str:
     s = get_settings()
     return (
         f"provider={s.llm_provider} model={s.model_name} "
-        f"key={'已配置' if s.has_key else '未配置'} db={s.db_path}"
+        f"key={'已配置' if s.has_key else '未配置'} db={s.db_backend}"
     )
 
 
 def check_db() -> str:
-    from app.db.base import get_conn, init_db
+    from app.db.base import backend_info, get_conn, init_db
 
-    init_db()
+    backend = init_db()
     with get_conn() as conn:
-        count = conn.execute("SELECT COUNT(*) AS c FROM activities").fetchone()["c"]
-    return f"演示活动 {count} 条"
+        row = conn.fetchone("SELECT COUNT(*) AS c FROM activities")
+    info = backend_info()
+    return f"{backend} @ {info['target']}，演示活动 {(row or {}).get('c', 0)} 条"
 
 
 def check_tools() -> str:

@@ -2,7 +2,7 @@
 
 规矩：
 1. 所有密钥只从环境变量 / .env 读，代码里一个字符都不许出现。
-2. 所有可调参数（模型、温度、超时）都在这儿，别散落在业务里。
+2. 所有可调参数（模型、温度、超时、数据库）都在这儿，别散落在业务里。
 3. 用 lru_cache 保证整个进程只有一个 Settings 实例。
 """
 
@@ -54,15 +54,39 @@ class Settings(BaseSettings):
     port: int = 8000
     cors_origins: str = "*"         # 逗号分隔，如 "http://localhost:5173,http://127.0.0.1:3000"
     history_limit: int = 20         # 每次带给模型的历史消息条数上限
+
+    # ---- 数据库 ----
+    # sqlite：零依赖，开发与测试用；mysql：联调与部署用（需 pip install pymysql）
+    db_backend: Literal["sqlite", "mysql"] = "sqlite"
+
+    # sqlite 专用
     db_path: str = "data/agent.db"
 
-    # ---- 派生属性 ----
+    # mysql 专用
+    db_host: str = "127.0.0.1"
+    db_port: int = 3306
+    db_user: str = "root"
+    db_password: str = ""
+    db_name: str = "campus_agent"
+
+    # ---- 校验 ----
     @field_validator("llm_provider", mode="before")
     @classmethod
     def _normalize_provider(cls, v: object) -> str:
         text = str(v or "").strip().lower()
         return text or "deepseek"
 
+    @field_validator("db_backend", mode="before")
+    @classmethod
+    def _normalize_db(cls, v: object) -> str:
+        text = str(v or "").strip().lower()
+        if text in {"mysql", "mariadb"}:
+            return "mysql"
+        if text in {"postgres", "postgresql", "pg"}:
+            raise ValueError("本服务只支持 sqlite / mysql，Postgres 未接入")
+        return text or "sqlite"
+
+    # ---- 派生属性 ----
     @property
     def base_url(self) -> str:
         return self.llm_base_url.strip() or PROVIDER_PRESETS[self.llm_provider]["base_url"]
@@ -80,6 +104,18 @@ class Settings(BaseSettings):
     def has_key(self) -> bool:
         return bool(self.llm_api_key.strip())
 
+    def db_summary(self) -> dict[str, object]:
+        """给自检和日志用：不含密码。"""
+        if self.db_backend == "mysql":
+            return {
+                "backend": "mysql",
+                "host": self.db_host,
+                "port": self.db_port,
+                "database": self.db_name,
+                "user": self.db_user,
+            }
+        return {"backend": "sqlite", "path": self.db_path}
+
     def safe_summary(self) -> dict[str, object]:
         """给 /health 用：绝不包含 key 本身，只说有没有。"""
         return {
@@ -89,6 +125,7 @@ class Settings(BaseSettings):
             "key_configured": self.has_key,
             "temperature": self.llm_temperature,
             "history_limit": self.history_limit,
+            "db": self.db_summary(),
         }
 
 
