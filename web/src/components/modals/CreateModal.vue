@@ -217,7 +217,7 @@ const generatedPages = computed(() => result.value?.doc.pages ?? [])
 async function generate(): Promise<void> {
   const text = prompt.value.trim()
   if (!text) {
-    errorText.value = '先写一句需求，比如「摄影社招新，10月26日晚7点面试」'
+    errorText.value = '请先描述活动需求，比如「摄影社招新，10月26日晚7点面试」'
     return
   }
   generating.value = true
@@ -323,7 +323,7 @@ const FORM_FIELDS: { key: PosterTextKey; label: string; placeholder: string }[] 
   <BaseModal
     :open="open"
     title="创建活动页面"
-    subtitle="从一句话、一个模板，或者一张海报开始"
+    subtitle="从活动需求、一个模板，或者一张海报开始"
     :width="840"
     @close="close"
   >
@@ -346,7 +346,7 @@ const FORM_FIELDS: { key: PosterTextKey; label: string; placeholder: string }[] 
       <!-- AI -->
       <section v-if="tab === 'ai'" class="ai-tab">
         <label class="field">
-          <span class="field__label">用一句话说清活动</span>
+          <span class="field__label">描述活动需求</span>
           <textarea
             v-model="prompt"
             class="textarea create__prompt"

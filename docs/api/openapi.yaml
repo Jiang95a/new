@@ -135,6 +135,36 @@ paths:
                     $ref: "#/components/schemas/User"
         default:
           $ref: "#/components/responses/Error"
+    put:
+      tags: [Auth]
+      summary: 更新个人资料
+      operationId: updateCurrentUser
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [displayName]
+              properties:
+                displayName:
+                  type: string
+                  minLength: 1
+                  maxLength: 80
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/User"
+        default:
+          $ref: "#/components/responses/Error"
 
   /templates:
     get:
@@ -1188,6 +1218,53 @@ paths:
                     additionalProperties: true
         "503":
           $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /feedback:
+    post:
+      tags: [AI]
+      summary: 提交用户反馈
+      operationId: submitFeedback
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content]
+              properties:
+                content:
+                  type: string
+                  maxLength: 3000
+                category:
+                  type: string
+                  enum: [suggestion, bug, content, other]
+                contact:
+                  type: string
+                  maxLength: 160
+      responses:
+        "200":
+          description: Feedback recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    required: [id, status, createdAt]
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      status:
+                        type: string
+                      createdAt:
+                        type: string
+                        format: date-time
         default:
           $ref: "#/components/responses/Error"
 

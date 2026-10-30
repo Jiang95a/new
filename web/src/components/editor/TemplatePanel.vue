@@ -16,7 +16,7 @@ onMounted(async () => {
     <button type="button" class="tpl__ai" @click="emit('openCreate')">
       <span class="tpl__ai-icon"><Icon name="spark" :size="18" /></span>
       <span class="tpl__ai-text">
-        <strong>让 AI 从一句话开始</strong>
+        <strong>让 AI 根据需求生成</strong>
         <em>说清活动、时间、地点，直接给出四页方案</em>
       </span>
       <Icon name="chevron" :size="14" class="tpl__ai-arrow" />

@@ -12,6 +12,18 @@ export interface PublicActivity {
   document: Doc
 }
 
+export interface PublicActivitySummary {
+  slug: string
+  title: string
+  description?: string
+  activityType?: string
+  coverTone?: string
+  coverCode?: string
+  coverTitle?: string
+  status: string
+  updatedAt?: string
+}
+
 export async function getPublicActivity(slug: string): Promise<PublicActivity> {
   const data = readData<{
     slug?: string
@@ -30,6 +42,27 @@ export async function getPublicActivity(slug: string): Promise<PublicActivity> {
     },
     document,
   }
+}
+
+export async function listPublicActivities(
+  params: {
+    q?: string
+    activityType?: string
+    page?: number
+    pageSize?: number
+  } = {}
+): Promise<PublicActivitySummary[]> {
+  const search = new URLSearchParams()
+  if (params.q) search.set('q', params.q)
+  if (params.activityType) search.set('activityType', params.activityType)
+  search.set('page', String(params.page ?? 1))
+  search.set('pageSize', String(params.pageSize ?? 50))
+  const payload = await apiRequest<{ data?: PublicActivitySummary[] }>(
+    `/public/activities?${search.toString()}`,
+    {},
+    { auth: false }
+  )
+  return Array.isArray(payload.data) ? payload.data : []
 }
 
 export async function submitForm(

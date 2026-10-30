@@ -133,7 +133,7 @@ function templateTone(id: string): string {
             <span>03</span>
             <div>
               <h2>让 AI 帮你生成</h2>
-              <p>用一句话描述需求，或者上传一张活动海报。</p>
+              <p>描述活动需求，或者上传一张活动海报。</p>
             </div>
           </div>
           <label class="field">

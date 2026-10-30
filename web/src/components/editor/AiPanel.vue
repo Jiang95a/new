@@ -170,7 +170,7 @@ function dismissSuggestion(id: string): void {
       <span class="ai__generate-icon"><Icon name="wand" :size="15" /></span>
       <span>
         <strong>用它生成整页方案</strong>
-        <em>一句话 → 首页 / 介绍 / 表单 / 成功页</em>
+        <em>活动需求 → 首页 / 介绍 / 表单 / 成功页</em>
       </span>
       <Icon name="chevron" :size="13" class="ai__generate-arrow" />
     </button>

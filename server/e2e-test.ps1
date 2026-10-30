@@ -107,6 +107,12 @@ $r = Hit 'GET' '/auth/me' $null $token
 Check 'GET /auth/me（带 token）' $r.code 200
 Write-Host "  $($r.body)"
 
+$r = Hit 'PUT' '/auth/me' @{ displayName = '李同学（已更新）' } $token
+Check 'PUT /auth/me（更新个人资料）' $r.code 200
+
+$r = Hit 'POST' '/feedback' @{ category = 'suggestion'; content = '希望增加更多校园活动模板'; contact = 'e2e@example.com' } $token
+Check 'POST /feedback（用户反馈）' $r.code 200
+
 $r = Hit 'GET' '/auth/me' $null $null
 Check 'GET /auth/me（无 token）应 401' $r.code 401
 

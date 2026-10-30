@@ -14,7 +14,7 @@ import type { Doc, DocPlan } from '@/types/editor'
  *
  * 跟编辑器右侧那个 AiPanel 不是一回事：
  *   AiPanel      —— 有上下文（当前页面、选中组件），回答"这一块怎么改"
- *   AiComposer   —— 没有上下文，负责"从一句话直接生出第一个页面"
+ *   AiComposer   —— 没有上下文，负责根据活动需求直接生成第一个页面
  *
  * 生成链路和创建弹窗完全一致（同一套 planner 降级链）：
  *   智能体结构化 JSON → 文本结构解析 → 本地规则兜底
@@ -96,7 +96,7 @@ function guessType(text: string, plan: DocPlan | null): string {
 async function generate(): Promise<void> {
   const text = prompt.value.trim()
   if (!text) {
-    errorText.value = '先用一句话说清你要办什么活动'
+    errorText.value = '请先描述你要办什么活动'
     textareaRef.value?.focus()
     return
   }

@@ -766,7 +766,7 @@ export function buildQuickDoc(input: {
       ],
     }),
     block('text', {
-      text: '这里放活动介绍。先用一句话说清：谁办的、干什么的、为什么值得来。',
+      text: '这里放活动介绍。先讲清楚：谁办的、干什么的、为什么值得来。',
     }),
     block('button', {
       text: '立即报名',

@@ -6,12 +6,19 @@ import EditorView from '@/views/EditorView.vue'
 import PublicActivityView from '@/views/PublicActivityView.vue'
 import LoginView from '@/views/LoginView.vue'
 import ProjectDataView from '@/views/ProjectDataView.vue'
+import CampusActivitiesView from '@/views/CampusActivitiesView.vue'
+import ProfileView from '@/views/ProfileView.vue'
+import SettingsView from '@/views/SettingsView.vue'
+import HelpView from '@/views/HelpView.vue'
+import LandingView from '@/views/LandingView.vue'
 import { getAccessToken } from '@/services/http'
 
 export const appRoutes: RouteRecordRaw[] = [
   {
     path: '/',
-    redirect: '/projects',
+    name: 'landing',
+    component: LandingView,
+    meta: { public: true },
   },
   {
     path: '/login',
@@ -33,6 +40,26 @@ export const appRoutes: RouteRecordRaw[] = [
     path: '/templates',
     name: 'templates',
     component: TemplatesView,
+  },
+  {
+    path: '/campus',
+    name: 'campus-activities',
+    component: CampusActivitiesView,
+  },
+  {
+    path: '/profile',
+    name: 'profile',
+    component: ProfileView,
+  },
+  {
+    path: '/settings',
+    name: 'settings',
+    component: SettingsView,
+  },
+  {
+    path: '/help',
+    name: 'help',
+    component: HelpView,
   },
   {
     path: '/projects/:projectId/analytics',

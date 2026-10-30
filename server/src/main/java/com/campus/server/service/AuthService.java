@@ -142,6 +142,17 @@ public class AuthService {
         return toDto(user);
     }
 
+    @Transactional
+    public Dtos.UserDto updateProfile(Dtos.UpdateProfileRequest request) {
+        CurrentUser current = CurrentUser.require();
+        UserEntity user = userMapper.findById(current.userId());
+        if (user == null) {
+            throw BizException.unauthenticated("用户不存在");
+        }
+        userMapper.updateDisplayName(user.getId(), request.displayName().trim());
+        return toDto(userMapper.findById(user.getId()));
+    }
+
     private Dtos.AuthResponse issueTokens(UserEntity user, String userAgent) {
         // 先定 sessionId，accessToken 的 jti 与它绑定（拦截器据此判断会话是否已吊销）
         String sessionId = Ids.uuid();

@@ -4,6 +4,7 @@ export interface AuthUser {
   id: string
   displayName: string
   email: string
+  status?: string
 }
 
 interface AuthPayload {
@@ -44,6 +45,15 @@ export async function register(email: string, password: string, displayName: str
 
 export async function getMe(): Promise<AuthUser> {
   return readData<AuthUser>(await apiRequest('/auth/me'))
+}
+
+export async function updateMe(displayName: string): Promise<AuthUser> {
+  return readData<AuthUser>(
+    await apiRequest('/auth/me', {
+      method: 'PUT',
+      body: JSON.stringify({ displayName }),
+    })
+  )
 }
 
 export async function logout(): Promise<void> {

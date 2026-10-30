@@ -3,6 +3,7 @@ package com.campus.server.mapper;
 import org.apache.ibatis.annotations.Mapper;
 import com.campus.server.entity.MiscEntities.ActivityEventEntity;
 import com.campus.server.entity.MiscEntities.ExportJobEntity;
+import com.campus.server.entity.MiscEntities.FeedbackReportEntity;
 import com.campus.server.entity.ProjectAssetEntity;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Param;
@@ -148,4 +149,12 @@ public interface MiscMapper {
                         @Param("objectKey") String objectKey,
                         @Param("errorMessage") String errorMessage,
                         @Param("finishedAt") LocalDateTime finishedAt);
+
+    // ---------------------------------------------------------------- feedback_reports
+
+    @Insert("""
+            INSERT INTO feedback_reports (id, user_id, category, content, contact, status)
+            VALUES (#{id}, #{userId}, #{category}, #{content}, #{contact}, #{status})
+            """)
+    int insertFeedback(FeedbackReportEntity feedback);
 }

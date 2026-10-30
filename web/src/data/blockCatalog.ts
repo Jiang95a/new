@@ -121,7 +121,7 @@ function defaultProps(type: BlockType): Record<string, any> {
     case 'banner':
       return {
         title: '在这里写主标题',
-        subtitle: '一句话说清这是什么活动',
+        subtitle: '用简短文案说清这是什么活动',
         image: '',
         height: 220,
       }

@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Icon from '@/components/ui/Icon.vue'
 import { useAuthStore } from '@/stores/auth'
+import { getLandingPath } from '@/composables/usePreferences'
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -21,7 +22,7 @@ async function submit(): Promise<void> {
     } else {
       await auth.register(email.value.trim(), password.value, displayName.value.trim())
     }
-    const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/projects'
+    const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : getLandingPath()
     await router.replace(redirect)
   } catch (err) {
     localError.value = err instanceof Error ? err.message : '操作失败'
@@ -34,7 +35,7 @@ async function submit(): Promise<void> {
     <section class="login-card">
       <div class="login-brand">
         <span><Icon name="spark" :size="20" /></span>
-        <div><strong>轻搭 AI DIY 工坊</strong><small>校园活动页面制作平台</small></div>
+        <div><strong>青搭 AI DIY 工坊</strong><small>校园活动页面制作平台</small></div>
       </div>
       <p class="login-eyebrow">CAMPUS ACTIVITY STUDIO</p>
       <h1>{{ mode === 'login' ? '登录工作台' : '创建账号' }}</h1>

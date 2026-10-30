@@ -42,6 +42,25 @@ public final class Dtos {
     public record UserDto(String id, String email, String displayName, String status) {
     }
 
+    public record UpdateProfileRequest(
+            @jakarta.validation.constraints.NotBlank(message = "昵称不能为空")
+            @jakarta.validation.constraints.Size(max = 80, message = "昵称最多 80 字")
+            String displayName
+    ) {
+    }
+
+    public record FeedbackRequest(
+            @jakarta.validation.constraints.NotBlank(message = "反馈内容不能为空")
+            @jakarta.validation.constraints.Size(max = 3000, message = "反馈内容最多 3000 字")
+            String content,
+            String category,
+            String contact
+    ) {
+    }
+
+    public record FeedbackResult(String id, String status, String createdAt) {
+    }
+
     public record AuthResponse(String accessToken, String refreshToken, UserDto user) {
     }
 

@@ -39,4 +39,15 @@ public final class MiscEntities {
         private LocalDateTime createdAt;
         private LocalDateTime finishedAt;
     }
+
+    @Data
+    public static class FeedbackReportEntity {
+        private String id;
+        private String userId;
+        private String category;
+        private String content;
+        private String contact;
+        private String status;
+        private LocalDateTime createdAt;
+    }
 }

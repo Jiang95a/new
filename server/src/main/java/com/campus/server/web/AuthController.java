@@ -10,6 +10,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -94,6 +95,11 @@ public class AuthController {
     @GetMapping("/me")
     public ApiResponse.Envelope<Dtos.UserDto> me() {
         return ApiResponse.ok(authService.me());
+    }
+
+    @PutMapping("/me")
+    public ApiResponse.Envelope<Dtos.UserDto> updateMe(@Valid @RequestBody Dtos.UpdateProfileRequest request) {
+        return ApiResponse.ok(authService.updateProfile(request));
     }
 
     // ================================================================ Cookie

@@ -1,6 +1,13 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { getMe, login as loginApi, logout as logoutApi, register as registerApi, type AuthUser } from '@/services/auth'
+import {
+  getMe,
+  login as loginApi,
+  logout as logoutApi,
+  register as registerApi,
+  updateMe,
+  type AuthUser,
+} from '@/services/auth'
 import { getAccessToken, clearTokens } from '@/services/http'
 
 export const useAuthStore = defineStore('auth', () => {
@@ -48,6 +55,19 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  async function updateProfile(displayName: string): Promise<void> {
+    loading.value = true
+    error.value = ''
+    try {
+      user.value = await updateMe(displayName.trim())
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : '个人资料更新失败'
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
   async function logout(): Promise<void> {
     try {
       await logoutApi()
@@ -65,6 +85,7 @@ export const useAuthStore = defineStore('auth', () => {
     login,
     register,
     fetchMe,
+    updateProfile,
     logout,
   }
 })

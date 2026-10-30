@@ -366,7 +366,8 @@
   text-transform: uppercase;
 }
 
-.workspace-popover button {
+.workspace-popover button,
+.workspace-popover > a:not(.workspace-brand) {
   display: flex;
   width: 100%;
   align-items: center;
@@ -379,23 +380,27 @@
   cursor: pointer;
 }
 
-.workspace-popover button:hover {
+.workspace-popover button:hover,
+.workspace-popover > a:not(.workspace-brand):hover {
   background: var(--surface-soft);
 }
 
-.workspace-popover button > span:not(.workspace-menu-avatar) {
+.workspace-popover button > span:not(.workspace-menu-avatar),
+.workspace-popover > a > span:not(.workspace-menu-avatar) {
   display: flex;
   min-width: 0;
   flex: 1;
   flex-direction: column;
 }
 
-.workspace-popover button strong {
+.workspace-popover button strong,
+.workspace-popover > a strong {
   color: var(--ink);
   font-size: 10px;
 }
 
-.workspace-popover button small {
+.workspace-popover button small,
+.workspace-popover > a small {
   margin-top: 3px;
   color: var(--muted);
   font-size: 8px;
@@ -454,6 +459,21 @@
   padding: 13px;
 }
 
+.workspace-help-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.workspace-help-heading button {
+  width: auto;
+  flex: 0 0 auto;
+  padding: 4px;
+  border-radius: 6px;
+  color: var(--muted);
+}
+
 .workspace-help-popover strong {
   font-size: 11px;
 }
@@ -469,6 +489,13 @@
   color: var(--primary);
   font-size: 9px;
   font-weight: 750;
+}
+
+.workspace-help-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
 }
 
 .workspace-notification-button {
@@ -567,9 +594,48 @@
   font-size: 8px;
 }
 
-.workspace-user-menu button {
+.workspace-user-menu button,
+.workspace-user-menu > a {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 10px;
   border-radius: 8px;
   font-size: 9px;
+}
+
+.workspace-user-menu > a:hover {
+  background: var(--surface-soft);
+}
+
+html[data-density='compact'] .project-grid,
+html[data-density='compact'] .campus-grid {
+  gap: 11px;
+}
+
+html[data-density='compact'] .project-cover {
+  height: 124px;
+}
+
+html[data-density='compact'] .project-card-body,
+html[data-density='compact'] .campus-card-body {
+  padding: 13px;
+}
+
+html[data-density='compact'] .stat-card,
+html[data-density='compact'] .metric-card {
+  min-height: 98px;
+  padding: 15px;
+}
+
+html[data-motion='reduced'] *,
+html[data-motion='reduced'] *::before,
+html[data-motion='reduced'] *::after {
+  scroll-behavior: auto !important;
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
 }
 
 .workspace-content {

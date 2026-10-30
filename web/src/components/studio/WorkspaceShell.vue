@@ -7,6 +7,7 @@ import { useAiDrawer } from '@/composables/useAiDrawer'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
 import { useProjectStore } from '@/stores/projects'
+import { useWorkspace } from '@/composables/useWorkspace'
 
 const route = useRoute()
 const router = useRouter()
@@ -14,6 +15,7 @@ const auth = useAuthStore()
 const projectStore = useProjectStore()
 const toast = useToast()
 const { openDrawer } = useAiDrawer()
+const { workspaces, selected: currentWorkspace, selectWorkspace } = useWorkspace()
 const rootRef = ref<HTMLElement | null>(null)
 const searchRef = ref<HTMLInputElement | null>(null)
 const searchText = ref('')
@@ -21,9 +23,9 @@ const showOrgMenu = ref(false)
 const showNotifications = ref(false)
 const showUserMenu = ref(false)
 const showHelp = ref(false)
-const workspaceName = ref('学生活动中心')
-const workspaceType = ref('团队工作空间')
-const workspaceAvatar = ref('学')
+const workspaceName = computed(() => currentWorkspace.value.name)
+const workspaceType = computed(() => currentWorkspace.value.type)
+const workspaceAvatar = computed(() => currentWorkspace.value.avatar)
 
 const notifications = [
   { title: '摄影社招新收到 126 份报名', detail: '活动状态正常，报名截止时间为 11 月 1 日', time: '刚刚' },
@@ -32,6 +34,7 @@ const notifications = [
 
 const navItems = [
   { href: '/projects', label: '项目工作台', icon: 'home' },
+  { href: '/campus', label: '校园活动', icon: 'pin' },
   { href: '/projects/new', label: '新建活动', icon: 'plus' },
   { href: '/templates', label: '模板灵感', icon: 'grid' },
 ]
@@ -47,8 +50,12 @@ const isActive = computed(() => (href: string) => {
 
 const pageTitle = computed(() => {
   if (route.path === '/projects') return '项目工作台'
+  if (route.path === '/campus') return '校园活动'
   if (route.path === '/projects/new') return '新建活动'
   if (route.path === '/templates') return '模板灵感'
+  if (route.path === '/profile') return '个人资料'
+  if (route.path === '/settings') return '偏好设置'
+  if (route.path === '/help') return '帮助与反馈'
   if (/^\/projects\/[^/]+\/(analytics|submissions|exports)$/.test(route.path)) return '项目数据'
   if (route.path.startsWith('/editor')) return '页面编辑器'
   if (route.path.startsWith('/p/')) return '活动预览'
@@ -120,11 +127,11 @@ function clearSearch(): void {
   syncSearch()
 }
 
-function selectWorkspace(name: string, type: string, avatar: string): void {
-  workspaceName.value = name
-  workspaceType.value = type
-  workspaceAvatar.value = avatar
+function chooseWorkspace(id: string): void {
+  selectWorkspace(id)
   showOrgMenu.value = false
+  const name = currentWorkspace.value.name
+  toast.pushToast(`已切换到「${name}」`, 'success')
 }
 
 function onDocumentClick(event: MouseEvent): void {
@@ -157,10 +164,10 @@ onBeforeUnmount(() => {
 <template>
   <div ref="rootRef" class="workspace-layout studio-workspace">
     <aside class="workspace-sidebar">
-      <RouterLink class="workspace-brand" to="/projects">
+      <RouterLink class="workspace-brand" to="/" aria-label="返回青搭产品首页">
         <span class="workspace-brand-mark"><span /><span /></span>
         <span class="workspace-brand-copy">
-          <strong>轻搭</strong>
+          <strong>青搭</strong>
           <small>AI DIY Studio</small>
         </span>
       </RouterLink>
@@ -181,15 +188,18 @@ onBeforeUnmount(() => {
         </button>
         <div v-if="showOrgMenu" class="workspace-popover workspace-org-menu">
           <p>切换工作空间</p>
-          <button type="button" @click="selectWorkspace('学生活动中心', '团队工作空间', '学')">
-            <span class="workspace-menu-avatar">学</span>
-            <span><strong>学生活动中心</strong><small>8 名团队成员</small></span>
-            <Icon v-if="workspaceName === '学生活动中心'" name="check" :size="14" />
-          </button>
-          <button type="button" @click="selectWorkspace('Huiyi 的个人空间', '个人工作空间', 'H')">
-            <span class="workspace-menu-avatar is-personal">H</span>
-            <span><strong>Huiyi 的个人空间</strong><small>仅自己可见</small></span>
-            <Icon v-if="workspaceName === 'Huiyi 的个人空间'" name="check" :size="14" />
+          <button
+            v-for="workspace in workspaces"
+            :key="workspace.id"
+            type="button"
+            @click="chooseWorkspace(workspace.id)"
+          >
+            <span class="workspace-menu-avatar">{{ workspace.avatar }}</span>
+            <span
+              ><strong>{{ workspace.name }}</strong
+              ><small>{{ workspace.type }}</small></span
+            >
+            <Icon v-if="currentWorkspace.id === workspace.id" name="check" :size="14" />
           </button>
           <button class="workspace-menu-footer" type="button" @click="showOrgMenu = false">
             <Icon name="sliders" :size="14" />管理工作空间
@@ -221,14 +231,28 @@ onBeforeUnmount(() => {
       </nav>
 
       <div class="workspace-sidebar-bottom">
-        <button class="workspace-nav-item workspace-help-trigger" type="button" @click="showHelp = !showHelp">
+        <button
+          class="workspace-nav-item workspace-help-trigger"
+          type="button"
+          :aria-expanded="showHelp"
+          @click="showHelp = !showHelp"
+        >
           <Icon name="help" :size="17" />
           <span>使用帮助</span>
         </button>
         <div v-if="showHelp" class="workspace-popover workspace-help-popover">
+          <div class="workspace-help-heading">
+            <strong>使用帮助</strong>
+            <button type="button" aria-label="关闭使用帮助" @click="showHelp = false">
+              <Icon name="close" :size="13" />
+            </button>
+          </div>
           <strong>快速开始</strong>
           <p>从模板创建活动，在编辑器中修改页面，然后预览并发布。</p>
-          <RouterLink to="/projects/new" @click="showHelp = false">新建第一个活动</RouterLink>
+          <div class="workspace-help-actions">
+            <RouterLink to="/projects/new" @click="showHelp = false">新建第一个活动</RouterLink>
+            <RouterLink to="/help" @click="showHelp = false">进入帮助中心</RouterLink>
+          </div>
         </div>
         <button class="workspace-profile" type="button" @click="showUserMenu = !showUserMenu">
           <span class="workspace-profile-avatar">{{ avatarText }}</span>
@@ -244,7 +268,7 @@ onBeforeUnmount(() => {
     <div class="workspace-main">
       <header class="workspace-topbar">
         <div class="workspace-breadcrumb">
-          <RouterLink to="/projects"><Icon name="home" :size="13" />校园活动</RouterLink>
+          <RouterLink to="/projects"><Icon name="home" :size="13" />工作台</RouterLink>
           <span>/</span>
           <strong>{{ pageTitle }}</strong>
         </div>
@@ -317,9 +341,15 @@ onBeforeUnmount(() => {
                   ><small>{{ auth.user?.email || 'huiyi11111 · 前端开发' }}</small></span
                 >
               </div>
-              <button type="button" @click="showUserMenu = false"><Icon name="users" :size="14" />个人资料</button>
-              <button type="button" @click="showUserMenu = false"><Icon name="sliders" :size="14" />偏好设置</button>
-              <button type="button" @click="showUserMenu = false"><Icon name="help" :size="14" />帮助与反馈</button>
+              <RouterLink to="/profile" @click="showUserMenu = false"
+                ><Icon name="users" :size="14" />个人资料</RouterLink
+              >
+              <RouterLink to="/settings" @click="showUserMenu = false"
+                ><Icon name="sliders" :size="14" />偏好设置</RouterLink
+              >
+              <RouterLink to="/help" @click="showUserMenu = false"
+                ><Icon name="help" :size="14" />帮助与反馈</RouterLink
+              >
               <button type="button" @click="signOut"><Icon name="external" :size="14" />退出登录</button>
             </div>
           </div>
