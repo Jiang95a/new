@@ -1,0 +1,20 @@
+INFO:     Started server process [28260]
+INFO:     Waiting for application startup.
+2026-10-30 23:40:59,890 INFO    app | 配置就绪：provider=deepseek model=deepseek-chat
+2026-10-30 23:40:59,891 WARNING app | 未配置视觉模型 —— /poster/extract 会返回 503，前端应回退到手动填写
+2026-10-30 23:40:59,894 INFO    app | 知识库就绪：8 个文档 / 34 块 / 维度 512
+2026-10-30 23:40:59,895 INFO    app | 工具已注册（9 个）：list_block_types, draft_page_plan, validate_page_plan, read_poster_from_url, search_knowledge, get_activity_stats, get_current_time, calculate, search_web
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+2026-10-30 23:42:02,480 INFO    langchain_openai.chat_models._client_utils | langchain-openai detected system proxy configuration and no explicit `http_socket_options` / `http_client` / `http_async_client` / `openai_proxy`; skipping the custom `httpx` transport so httpx's env-proxy auto-detection applies. Pass `http_socket_options=[...]` to opt back into kernel-level TCP keepalive tuning on top of the env proxy.
+2026-10-30 23:42:03,174 INFO    httpx2 | HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-10-30 23:42:04,084 INFO    httpx2 | HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-10-30 23:42:04,962 INFO    httpx2 | HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-10-30 23:43:56,001 INFO    httpx2 | HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-10-30 23:43:56,678 INFO    httpx2 | HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-10-30 23:44:00,709 INFO    httpx2 | HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-10-30 23:44:04,180 INFO    httpx2 | HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-10-31 00:04:12,821 INFO    httpx2 | HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-10-31 00:04:14,511 INFO    httpx2 | HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-10-31 00:07:15,343 INFO    httpx2 | HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-10-31 00:07:16,860 INFO    httpx2 | HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
