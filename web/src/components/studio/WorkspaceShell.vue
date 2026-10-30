@@ -2,11 +2,18 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import Icon from '@/components/ui/Icon.vue'
+import AiComposerDrawer from '@/components/ai/AiComposerDrawer.vue'
+import { useAiDrawer } from '@/composables/useAiDrawer'
+import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
+import { useProjectStore } from '@/stores/projects'
 
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
+const projectStore = useProjectStore()
+const toast = useToast()
+const { openDrawer } = useAiDrawer()
 const rootRef = ref<HTMLElement | null>(null)
 const searchRef = ref<HTMLInputElement | null>(null)
 const searchText = ref('')
@@ -26,8 +33,7 @@ const notifications = [
 const navItems = [
   { href: '/projects', label: '项目工作台', icon: 'home' },
   { href: '/projects/new', label: '新建活动', icon: 'plus' },
-  { href: '/projects/new#templates', label: '模板灵感', icon: 'grid' },
-  { href: '/editor/demo', label: '页面编辑器', icon: 'layout' },
+  { href: '/templates', label: '模板灵感', icon: 'grid' },
 ]
 
 const isActive = computed(() => (href: string) => {
@@ -40,10 +46,30 @@ const isActive = computed(() => (href: string) => {
 const pageTitle = computed(() => {
   if (route.path === '/projects') return '项目工作台'
   if (route.path === '/projects/new') return '新建活动'
+  if (route.path === '/templates') return '模板灵感'
   if (route.path.startsWith('/editor')) return '页面编辑器'
   if (route.path.startsWith('/p/')) return '活动预览'
   return '工作台'
 })
+
+/** 左侧栏的「AI 生成」：全局抽屉，任何页面都能开 */
+function openAiComposer(): void {
+  openDrawer()
+}
+
+/**
+ * 「页面编辑器」原来硬编码指向 /editor/demo —— demo 早不是真项目 id 了，
+ * 点进去后端直接 404。改成「打开最近编辑的项目」，没有项目就引导去新建。
+ */
+function openLatestEditor(): void {
+  const latest = projectStore.projects[0]
+  if (!latest) {
+    toast.pushToast('还没有项目，先创建一个吧', 'warn')
+    void router.push('/projects/new')
+    return
+  }
+  void router.push(`/editor/${latest.id}`)
+}
 
 const displayName = computed(() => auth.user?.displayName || 'Huiyi')
 const avatarText = computed(() => displayName.value.slice(0, 1).toUpperCase())
@@ -180,6 +206,15 @@ onBeforeUnmount(() => {
           <Icon :name="item.icon" :size="17" />
           <span>{{ item.label }}</span>
         </RouterLink>
+        <button class="workspace-nav-item workspace-nav-item--button is-ai" type="button" @click="openAiComposer">
+          <Icon name="wand" :size="17" />
+          <span>AI 生成</span>
+          <em class="workspace-nav-badge">AI</em>
+        </button>
+        <button class="workspace-nav-item workspace-nav-item--button" type="button" @click="openLatestEditor">
+          <Icon name="layout" :size="17" />
+          <span>页面编辑器</span>
+        </button>
       </nav>
 
       <div class="workspace-sidebar-bottom">
@@ -289,5 +324,38 @@ onBeforeUnmount(() => {
       </header>
       <div class="workspace-content"><slot /></div>
     </div>
+
+    <AiComposerDrawer />
   </div>
 </template>
+
+<style scoped>
+/* .workspace-nav-item 原本只服务 <a>，套到 <button> 上会带出浏览器默认的灰底和边框 */
+.workspace-nav-item--button {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.workspace-nav-item--button:hover {
+  background: var(--ink-50, #f6f7f9);
+}
+
+.workspace-nav-item--button.is-ai {
+  color: var(--brand-600, #4f46e5);
+}
+
+.workspace-nav-badge {
+  margin-left: auto;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--brand-50, #eef2ff);
+  color: var(--brand-600, #4f46e5);
+  font-size: 9px;
+  font-style: normal;
+  letter-spacing: 0.04em;
+}
+</style>

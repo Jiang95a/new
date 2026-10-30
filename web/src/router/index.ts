@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import ProjectsView from '@/views/ProjectsView.vue'
 import NewProjectView from '@/views/NewProjectView.vue'
+import TemplatesView from '@/views/TemplatesView.vue'
 import EditorView from '@/views/EditorView.vue'
 import PublicActivityView from '@/views/PublicActivityView.vue'
 import LoginView from '@/views/LoginView.vue'
@@ -26,6 +27,11 @@ export const appRoutes: RouteRecordRaw[] = [
     path: '/projects/new',
     name: 'new-project',
     component: NewProjectView,
+  },
+  {
+    path: '/templates',
+    name: 'templates',
+    component: TemplatesView,
   },
   {
     path: '/editor/:projectId',
