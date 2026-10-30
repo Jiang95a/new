@@ -18,6 +18,7 @@ const cases = [
 describe('Vue 前端路由冒烟测试', () => {
   it.each(cases)('$path 可以渲染', async ({ path, selector, text }) => {
     localStorage.clear()
+    localStorage.setItem('diy-campus:access-token', 'test-token')
     const router = createRouter({
       history: createMemoryHistory(),
       routes: appRoutes,

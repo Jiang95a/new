@@ -29,7 +29,8 @@ __pycache__/
 .ruff_cache/
 
 # Local data and generated files
-data/
+/data/
+agent/data/
 *.db
 *.db-journal
 *.sqlite*

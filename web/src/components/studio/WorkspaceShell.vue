@@ -2,9 +2,11 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import Icon from '@/components/ui/Icon.vue'
+import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
 const router = useRouter()
+const auth = useAuthStore()
 const rootRef = ref<HTMLElement | null>(null)
 const searchRef = ref<HTMLInputElement | null>(null)
 const searchText = ref('')
@@ -42,6 +44,15 @@ const pageTitle = computed(() => {
   if (route.path.startsWith('/p/')) return '活动预览'
   return '工作台'
 })
+
+const displayName = computed(() => auth.user?.displayName || 'Huiyi')
+const avatarText = computed(() => displayName.value.slice(0, 1).toUpperCase())
+
+async function signOut(): Promise<void> {
+  await auth.logout()
+  showUserMenu.value = false
+  await router.replace('/login')
+}
 
 function queryText(): string {
   const value = route.query.q
@@ -182,9 +193,9 @@ onBeforeUnmount(() => {
           <RouterLink to="/projects/new" @click="showHelp = false">新建第一个活动</RouterLink>
         </div>
         <button class="workspace-profile" type="button" @click="showUserMenu = !showUserMenu">
-          <span class="workspace-profile-avatar">H</span>
+          <span class="workspace-profile-avatar">{{ avatarText }}</span>
           <span>
-            <strong>Huiyi</strong>
+            <strong>{{ displayName }}</strong>
             <small>活动管理员</small>
           </span>
           <Icon name="sliders" :size="15" />
@@ -258,16 +269,20 @@ onBeforeUnmount(() => {
               :aria-expanded="showUserMenu"
               @click="showUserMenu = !showUserMenu"
             >
-              H
+              {{ avatarText }}
             </button>
             <div v-if="showUserMenu" class="workspace-popover workspace-user-menu">
               <div class="workspace-user-card">
-                <span class="workspace-profile-avatar">H</span>
-                <span><strong>Huiyi</strong><small>huiyi11111 · 前端开发</small></span>
+                <span class="workspace-profile-avatar">{{ avatarText }}</span>
+                <span
+                  ><strong>{{ displayName }}</strong
+                  ><small>{{ auth.user?.email || 'huiyi11111 · 前端开发' }}</small></span
+                >
               </div>
               <button type="button" @click="showUserMenu = false"><Icon name="users" :size="14" />个人资料</button>
               <button type="button" @click="showUserMenu = false"><Icon name="sliders" :size="14" />偏好设置</button>
               <button type="button" @click="showUserMenu = false"><Icon name="help" :size="14" />帮助与反馈</button>
+              <button type="button" @click="signOut"><Icon name="external" :size="14" />退出登录</button>
             </div>
           </div>
         </div>

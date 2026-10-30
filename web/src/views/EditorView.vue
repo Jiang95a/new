@@ -18,6 +18,8 @@ import { useProjectStore } from '@/stores/projects'
 import { useToast } from '@/composables/useToast'
 import { formatTime } from '@/utils/misc'
 import type { BlockType, Doc } from '@/types/editor'
+import { getDraft, putDraft } from '@/services/draft'
+import { ApiError } from '@/services/http'
 
 type LeftTab = 'pages' | 'components' | 'templates'
 type RightTab = 'props' | 'style' | 'ai'
@@ -38,18 +40,32 @@ const publishOpen = ref(false)
 const auditOpen = ref(false)
 const deviceWidth = ref(390)
 const activeProjectId = ref('')
+const draftRevision = ref(0)
+const saveConflict = ref(false)
 let syncReady = false
+let remoteSaveTimer: number | undefined
 
 const requestedProjectId = computed(() => String(route.params.projectId ?? ''))
 
-function loadRequestedProject(): void {
-  const project =
+async function loadRequestedProject(): Promise<void> {
+  let localProject =
     projectStore.getById(requestedProjectId.value) ??
     projectStore.getBySlug(requestedProjectId.value) ??
+    (requestedProjectId.value ? await projectStore.refreshProject(requestedProjectId.value) : undefined) ??
     projectStore.projects[0]
-  if (!project) return
+  if (!localProject) return
+  const project = (await projectStore.refreshProject(localProject.id)) ?? localProject
   activeProjectId.value = project.id
-  store.loadDocument(project.id, project.document)
+  let document = project.document
+  try {
+    const draft = await getDraft(project.id)
+    draftRevision.value = draft.revision
+    document = draft.document
+    saveConflict.value = false
+  } catch {
+    draftRevision.value = project.draftRevision ?? 0
+  }
+  store.loadDocument(project.id, document)
   syncReady = true
 }
 
@@ -60,6 +76,10 @@ watch(
   (value) => {
     if (!syncReady || !activeProjectId.value) return
     projectStore.saveDocument(activeProjectId.value, value)
+    if (remoteSaveTimer !== undefined) window.clearTimeout(remoteSaveTimer)
+    remoteSaveTimer = window.setTimeout(() => {
+      void saveDraftRemote(value)
+    }, 900)
     const project = projectStore.getById(activeProjectId.value)
     if (!project) return
     if (value.published && project.status !== 'published') {
@@ -70,6 +90,22 @@ watch(
   },
   { deep: true }
 )
+
+async function saveDraftRemote(value: Doc): Promise<void> {
+  if (!activeProjectId.value) return
+  try {
+    const saved = await putDraft(activeProjectId.value, draftRevision.value, value)
+    draftRevision.value = saved.revision
+    saveConflict.value = false
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 409) {
+      saveConflict.value = true
+      toast.pushToast('草稿已在其他页面更新，请刷新后再保存', 'warn')
+      return
+    }
+    // 后端未启动时保留 localStorage 演示能力
+  }
+}
 
 const saveLabel = computed(() => {
   if (saving.value) return '保存中...'
@@ -118,6 +154,7 @@ function onKeydown(event: KeyboardEvent): void {
   if (event.key.toLowerCase() === 's') {
     event.preventDefault()
     store.saveNow()
+    void saveDraftRemote(store.doc)
     toast.pushToast('已保存到本地', 'success')
   }
 }
@@ -129,7 +166,10 @@ onMounted(() => {
   }
 })
 
-onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onKeydown)
+  if (remoteSaveTimer !== undefined) window.clearTimeout(remoteSaveTimer)
+})
 </script>
 
 <template>
@@ -145,7 +185,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
         ></RouterLink>
         <div class="editor-project-copy">
           <input :value="doc.title" aria-label="活动名称" @input="onTitleInput" />
-          <span><i />{{ saveLabel }}</span>
+          <span :class="{ 'is-conflict': saveConflict }"><i />{{ saveConflict ? '草稿冲突' : saveLabel }}</span>
         </div>
         <button class="editor-project-more" type="button" aria-label="AI 创建" @click="openCreate('ai')">
           <Icon name="wand" :size="16" />
@@ -260,9 +300,20 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
       </aside>
     </div>
 
-    <CreateModal :open="createOpen" :initial-tab="createTab" @close="createOpen = false" @applied="onApplied" />
+    <CreateModal
+      :open="createOpen"
+      :initial-tab="createTab"
+      :project-id="activeProjectId"
+      @close="createOpen = false"
+      @applied="onApplied"
+    />
     <PreviewModal :open="previewOpen" @close="previewOpen = false" />
-    <PublishModal :open="publishOpen" @close="publishOpen = false" />
+    <PublishModal
+      :open="publishOpen"
+      :project-id="activeProjectId"
+      :base-revision="draftRevision"
+      @close="publishOpen = false"
+    />
     <AuditModal :open="auditOpen" @close="auditOpen = false" />
   </main>
 </template>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import WorkspaceShell from '@/components/studio/WorkspaceShell.vue'
 import Icon from '@/components/ui/Icon.vue'
@@ -10,6 +10,10 @@ const route = useRoute()
 const router = useRouter()
 const statusFilter = ref<'all' | 'published' | 'draft'>('all')
 const sortMode = ref<'updated' | 'title'>('updated')
+
+onMounted(() => {
+  void projectStore.loadProjects()
+})
 
 const statusLabels: Record<ProjectStatus, string> = {
   draft: '草稿',

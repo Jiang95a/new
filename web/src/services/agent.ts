@@ -243,13 +243,17 @@ export interface PosterExtractResult {
 export async function extractPoster(dataUrl: string, timeoutMs = 90000): Promise<PosterExtractResult> {
   const controller = new AbortController()
   const timer = window.setTimeout(() => controller.abort(), timeoutMs)
+  const remoteUrl = /^https?:\/\//i.test(dataUrl)
+  const endpoint = remoteUrl
+    ? `${getAgentBase()}/poster/extract?url=${encodeURIComponent(dataUrl)}`
+    : `${getAgentBase()}/poster/extract`
 
   let response: Response
   try {
-    response = await fetch(`${getAgentBase()}/poster/extract`, {
+    response = await fetch(endpoint, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ dataUrl }),
+      headers: remoteUrl ? undefined : { 'Content-Type': 'application/json' },
+      body: remoteUrl ? undefined : JSON.stringify({ dataUrl }),
       signal: controller.signal,
     })
   } catch (error) {

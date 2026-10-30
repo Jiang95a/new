@@ -17,13 +17,13 @@ const prompt = ref(
 
 let pendingProjectId = ''
 
-function ensureProject() {
+async function ensureProject() {
   if (pendingProjectId) {
     const existing = projectStore.getById(pendingProjectId)
     if (existing) return existing
   }
   const template = TEMPLATES.find((item) => item.id === selectedTemplate.value)
-  const project = projectStore.createProject({
+  const project = await projectStore.createProjectRemote({
     title: title.value,
     org: org.value,
     type: template?.name || '校园活动',
@@ -33,13 +33,13 @@ function ensureProject() {
   return project
 }
 
-function startWithTemplate(): void {
-  const project = ensureProject()
+async function startWithTemplate(): Promise<void> {
+  const project = await ensureProject()
   router.push(`/editor/${project.id}`)
 }
 
-function openCreate(tab: 'ai' | 'poster'): void {
-  const project = ensureProject()
+async function openCreate(tab: 'ai' | 'poster'): Promise<void> {
+  const project = await ensureProject()
   router.push({ path: `/editor/${project.id}`, query: { create: tab } })
 }
 

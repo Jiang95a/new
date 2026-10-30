@@ -9,11 +9,13 @@ import { buildPlanPrompt, localDoc, normalizePlan, parsePlanFromText, planToDoc 
 import { AgentError, askAgent, extractJson, extractPoster, PLAN_SYSTEM_EXTRA, probeAgent } from '@/services/agent'
 import { useEditorStore } from '@/stores/editor'
 import { useToast } from '@/composables/useToast'
+import { uploadAsset } from '@/services/assets'
 
 type Tab = 'ai' | 'template' | 'poster'
 
-const props = withDefaults(defineProps<{ open: boolean; initialTab?: Tab }>(), {
+const props = withDefaults(defineProps<{ open: boolean; initialTab?: Tab; projectId?: string }>(), {
   initialTab: 'ai',
+  projectId: '',
 })
 const emit = defineEmits<{ close: []; applied: [doc: Doc] }>()
 
@@ -180,7 +182,18 @@ async function onPosterPick(event: Event): Promise<void> {
     return
   }
   try {
-    posterFile.value = await compressPoster(file)
+    const compressed = await compressPoster(file)
+    if (props.projectId) {
+      try {
+        const asset = await uploadAsset(file, props.projectId)
+        posterFile.value = asset.url
+      } catch {
+        posterFile.value = compressed
+        toast.pushToast('后端图片上传失败，暂时使用本地压缩图片', 'warn')
+      }
+    } else {
+      posterFile.value = compressed
+    }
   } catch {
     toast.pushToast('图片处理失败，请换一张图片', 'error')
     return

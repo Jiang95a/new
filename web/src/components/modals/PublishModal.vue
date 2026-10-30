@@ -9,8 +9,16 @@ import { copyText } from '@/services/exporters'
 import { downloadSharePoster } from '@/services/poster'
 import { useToast } from '@/composables/useToast'
 import { formatTime } from '@/utils/misc'
+import { publishProject as publishProjectApi, unpublishProject as unpublishProjectApi } from '@/services/publish'
 
-const props = defineProps<{ open: boolean }>()
+const props = withDefaults(
+  defineProps<{
+    open: boolean
+    projectId?: string
+    baseRevision?: number
+  }>(),
+  { projectId: '', baseRevision: 0 }
+)
 const emit = defineEmits<{ close: [] }>()
 
 const store = useEditorStore()
@@ -22,12 +30,34 @@ const posterBusy = ref(false)
 const published = computed(() => Boolean(doc.value.published))
 const url = computed(() => store.shareUrl)
 
-function publish(): void {
+async function publish(): Promise<void> {
+  if (props.projectId) {
+    try {
+      const result = await publishProjectApi(props.projectId, doc.value.slug)
+      doc.value.slug = result.publicSlug
+      doc.value.published = {
+        url: result.publicUrl,
+        slug: result.publicSlug,
+        at: result.publishedAt ? new Date(result.publishedAt).getTime() : Date.now(),
+      }
+      toast.pushToast('已发布到业务后端，链接和二维码已生成', 'success')
+      return
+    } catch (error) {
+      toast.pushToast(error instanceof Error ? `后端发布失败：${error.message}` : '后端发布失败', 'warn')
+    }
+  }
   store.publish()
-  toast.pushToast('发布成功，链接和二维码已生成', 'success')
+  toast.pushToast('本地发布成功，链接和二维码已生成', 'success')
 }
 
-function unpublish(): void {
+async function unpublish(): Promise<void> {
+  if (props.projectId) {
+    try {
+      await unpublishProjectApi(props.projectId)
+    } catch {
+      // 后端不可用时撤下本地发布状态
+    }
+  }
   store.unpublish()
   toast.pushToast('已撤下发布，链接会失效', 'info')
 }
@@ -113,8 +143,7 @@ async function downloadPoster(): Promise<void> {
 
         <p class="pub__note">
           <Icon name="info" :size="12" />
-          当前是纯前端演示：链接指向本地公开活动页
-          <code>/p/:slug</code>，二维码使用同一地址。接上后端后，把这个地址替换为正式公开域名即可。
+          已优先调用 8080 业务后端发布；后端不可用时会降级为本地预览链接。
         </p>
       </template>
     </div>

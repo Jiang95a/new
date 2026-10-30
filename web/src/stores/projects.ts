@@ -4,6 +4,12 @@ import type { Doc } from '@/types/editor'
 import { createBlankDoc, createDemoDoc, createDocFromTemplate } from '@/data/templates'
 import { normalizeDoc } from '@/utils/doc'
 import { slugify, uid } from '@/utils/misc'
+import {
+  createProject as createProjectApi,
+  getProject as getProjectApi,
+  listProjects as listProjectsApi,
+  type ProjectApiRecord,
+} from '@/services/projects'
 
 export type ProjectStatus = 'draft' | 'published' | 'unpublished' | 'archived'
 
@@ -16,6 +22,9 @@ export interface ProjectRecord {
   coverTitle: string
   submissionCount: number
   document: Doc
+  draftRevision?: number
+  publicSlug?: string
+  publicUrl?: string
 }
 
 interface CreateProjectInput {
@@ -148,6 +157,8 @@ function restoreProjects(): ProjectRecord[] {
 
 export const useProjectStore = defineStore('projects', () => {
   const projects = ref<ProjectRecord[]>(restoreProjects())
+  const remoteLoading = ref(false)
+  const remoteError = ref('')
 
   watch(
     projects,
@@ -171,6 +182,48 @@ export const useProjectStore = defineStore('projects', () => {
 
   function getBySlug(slug: string): ProjectRecord | undefined {
     return projects.value.find((project) => project.document.slug === slug)
+  }
+
+  function fromApi(project: ProjectApiRecord): ProjectRecord {
+    return {
+      id: project.id,
+      type: project.activityType,
+      status: project.status as ProjectStatus,
+      coverTone: project.coverTone,
+      coverCode: project.coverCode,
+      coverTitle: project.coverTitle,
+      submissionCount: project.submissionCount,
+      document: project.draftDocument,
+      draftRevision: project.draftRevision,
+      publicSlug: project.publicSlug,
+      publicUrl: project.publicUrl,
+    }
+  }
+
+  async function loadProjects(): Promise<void> {
+    remoteLoading.value = true
+    remoteError.value = ''
+    try {
+      const rows = await listProjectsApi({ page: 1, pageSize: 100, sort: 'updated_at' })
+      if (rows.length) projects.value = rows.map(fromApi)
+    } catch (error) {
+      remoteError.value = error instanceof Error ? error.message : '项目列表加载失败'
+    } finally {
+      remoteLoading.value = false
+    }
+  }
+
+  async function refreshProject(projectId: string): Promise<ProjectRecord | undefined> {
+    try {
+      const remote = fromApi(await getProjectApi(projectId))
+      const index = projects.value.findIndex((project) => project.id === projectId)
+      if (index >= 0) projects.value[index] = remote
+      else projects.value.unshift(remote)
+      return remote
+    } catch (error) {
+      remoteError.value = error instanceof Error ? error.message : '项目加载失败'
+      return getById(projectId)
+    }
   }
 
   function uniqueSlug(title: string): string {
@@ -219,6 +272,39 @@ export const useProjectStore = defineStore('projects', () => {
     }
     projects.value.unshift(project)
     return project
+  }
+
+  async function createProjectRemote(input: CreateProjectInput): Promise<ProjectRecord> {
+    try {
+      const initialDocument = input.document
+        ? cloneDocument(input.document)
+        : input.templateId
+          ? createDocFromTemplate(input.templateId, createDemoDoc())
+          : createBlankDoc()
+      const title = input.title.trim() || '未命名校园活动'
+      initialDocument.title = title.slice(0, 40)
+      initialDocument.slug = uniqueSlug(title)
+      initialDocument.meta = {
+        ...initialDocument.meta,
+        org: input.org?.trim() || initialDocument.meta.org,
+      }
+      initialDocument.published = null
+      const remote = fromApi(
+        await createProjectApi({
+          title,
+          activityType: input.type?.trim() || '校园活动',
+          initialDocument,
+          coverTone: 'photo',
+          coverCode: 'NEW / DRAFT',
+          coverTitle: input.title.trim() || '未命名校园活动',
+        })
+      )
+      projects.value.unshift(remote)
+      return remote
+    } catch (error) {
+      remoteError.value = error instanceof Error ? error.message : '后端创建失败，已使用本地模式'
+      return createProject(input)
+    }
   }
 
   function saveDocument(projectId: string, document: Doc): void {
@@ -273,12 +359,17 @@ export const useProjectStore = defineStore('projects', () => {
 
   return {
     projects,
+    remoteLoading,
+    remoteError,
     projectCount,
     publishedCount,
     draftCount,
     getById,
     getBySlug,
     createProject,
+    createProjectRemote,
+    loadProjects,
+    refreshProject,
     saveDocument,
     updateProject,
     publishProject,

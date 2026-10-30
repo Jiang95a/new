@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, provide, reactive, ref, watch } from 'vue'
+import { computed, onMounted, provide, reactive, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import BlockView from '@/components/editor/BlockView.vue'
 import Icon from '@/components/ui/Icon.vue'
@@ -8,15 +8,21 @@ import { useToast } from '@/composables/useToast'
 import { useEditorStore } from '@/stores/editor'
 import { useProjectStore } from '@/stores/projects'
 import { themeCssVars } from '@/utils/theme'
+import { getPublicActivity, submitForm } from '@/services/public'
+import type { Doc } from '@/types/editor'
 
 const route = useRoute()
 const router = useRouter()
 const projectStore = useProjectStore()
 const editorStore = useEditorStore()
 const toast = useToast()
+const remoteDocument = ref<Doc | null>(null)
+const remoteActivity = ref<{ name: string; slug: string; status: string } | null>(null)
+const submitting = ref(false)
 
-const project = computed(() => projectStore.getBySlug(String(route.params.slug ?? '')))
-const document = computed(() => project.value?.document ?? editorStore.doc)
+const slug = computed(() => String(route.params.slug ?? ''))
+const project = computed(() => projectStore.getBySlug(slug.value))
+const document = computed(() => remoteDocument.value ?? project.value?.document ?? editorStore.doc)
 const pages = computed(() => document.value.pages ?? [])
 const currentPageId = ref('')
 const currentPage = computed(
@@ -27,7 +33,10 @@ const currentPage = computed(
 )
 const visibleBlocks = computed(() => currentPage.value?.blocks.filter((block) => !block.hidden) ?? [])
 const themeVars = computed(() => themeCssVars(document.value.theme))
-const shareUrl = computed(() => document.value.published?.url ?? `${window.location.origin}/p/${document.value.slug}`)
+const shareUrl = computed(
+  () =>
+    project.value?.publicUrl || document.value.published?.url || `${window.location.origin}/p/${document.value.slug}`
+)
 
 const answers = reactive<Record<string, string | string[]>>({})
 const errors = reactive<Record<string, boolean>>({})
@@ -48,6 +57,17 @@ function resetPage(): void {
 }
 
 watch(document, resetPage, { immediate: true })
+
+onMounted(async () => {
+  if (!slug.value) return
+  try {
+    const result = await getPublicActivity(slug.value)
+    remoteDocument.value = result.document
+    remoteActivity.value = result.activity
+  } catch {
+    // 后端不可用时保留本地演示
+  }
+})
 
 function isEmpty(value: string | string[] | undefined): boolean {
   if (value === undefined) return true
@@ -79,7 +99,7 @@ function validate(): boolean {
   return valid
 }
 
-function handleAction(action: any): void {
+async function handleAction(action: any): Promise<void> {
   if (!action) return
   if (action.type === 'url' && action.url) {
     window.open(String(action.url), '_blank', 'noopener')
@@ -97,9 +117,26 @@ function handleAction(action: any): void {
       toast.pushToast('请先补全红色标记的必填项', 'warn')
       return
     }
-    const successPage = pages.value.find((page) => page.role === 'success')
-    if (successPage) currentPageId.value = successPage.id
-    toast.pushToast('提交成功（当前为本地前端演示）', 'success')
+    const formBlock = currentPage.value?.blocks.find((block) => block.type === 'form')
+    if (!formBlock || !currentPage.value) {
+      toast.pushToast('当前页面没有可提交的表单', 'warn')
+      return
+    }
+    submitting.value = true
+    try {
+      await submitForm(slug.value, {
+        pageId: currentPage.value.id,
+        formComponentId: formBlock.id,
+        answers,
+      })
+      const successPage = pages.value.find((page) => page.role === 'success')
+      if (successPage) currentPageId.value = successPage.id
+      toast.pushToast('报名提交成功', 'success')
+    } catch (error) {
+      toast.pushToast(error instanceof Error ? error.message : '后端提交失败', 'warn')
+    } finally {
+      submitting.value = false
+    }
   }
 }
 
@@ -157,6 +194,16 @@ function goBack(): void {
         <RouterLink to="/projects">返回项目工作台</RouterLink>
       </div>
     </div>
-    <p class="activity-preview-note">公开活动 · {{ project?.status === 'published' ? '已发布' : '本地预览' }}</p>
+    <p class="activity-preview-note">
+      公开活动 ·
+      {{
+        remoteActivity?.status === 'published'
+          ? '后端已发布'
+          : project?.status === 'published'
+            ? '本地已发布'
+            : '本地预览'
+      }}
+      <span v-if="submitting"> · 提交中...</span>
+    </p>
   </main>
 </template>

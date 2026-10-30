@@ -1,0 +1,26 @@
+import { apiRequest, readData } from './http'
+
+export interface PublishResult {
+  publicSlug: string
+  publicUrl: string
+  publishedVersionId?: string
+  publishedAt?: string
+}
+
+export async function publishProject(id: string, slug?: string): Promise<PublishResult> {
+  return readData<PublishResult>(
+    await apiRequest(`/projects/${id}/publish`, {
+      method: 'POST',
+      body: JSON.stringify({ slug }),
+    })
+  )
+}
+
+export async function unpublishProject(id: string): Promise<void> {
+  await apiRequest(`/projects/${id}/unpublish`, { method: 'POST' })
+}
+
+export async function listVersions(id: string): Promise<unknown[]> {
+  const data = readData<unknown>(await apiRequest(`/projects/${id}/versions`))
+  return Array.isArray(data) ? data : []
+}

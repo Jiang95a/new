@@ -116,6 +116,14 @@
   background: var(--mint);
 }
 
+.editor-project-copy span.is-conflict {
+  color: #c53b53;
+}
+
+.editor-project-copy span.is-conflict i {
+  background: #d84b62;
+}
+
 .editor-project-more,
 .editor-history button {
   display: grid;
