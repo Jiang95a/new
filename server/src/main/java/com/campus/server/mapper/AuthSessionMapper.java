@@ -1,5 +1,6 @@
 package com.campus.server.mapper;
 
+import org.apache.ibatis.annotations.Mapper;
 import com.campus.server.entity.AuthSessionEntity;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Param;
@@ -8,6 +9,7 @@ import org.apache.ibatis.annotations.Update;
 
 import java.time.LocalDateTime;
 
+@Mapper
 public interface AuthSessionMapper {
 
     @Insert("""

@@ -1,5 +1,6 @@
 package com.campus.server.mapper;
 
+import org.apache.ibatis.annotations.Mapper;
 import com.campus.server.entity.ProjectEntity;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.ibatis.annotations.Insert;
@@ -12,6 +13,7 @@ import java.util.List;
 /**
  * projects 表。所有读操作都带 deleted_at IS NULL（软删除）。
  */
+@Mapper
 public interface ProjectMapper {
 
     // 关键坑：Java 文本块会自动吃掉结尾换行，多个文本块用 + 拼接时，

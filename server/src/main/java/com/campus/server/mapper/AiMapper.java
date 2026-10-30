@@ -1,5 +1,6 @@
 package com.campus.server.mapper;
 
+import org.apache.ibatis.annotations.Mapper;
 import com.campus.server.entity.AiJobEntity;
 import com.campus.server.entity.AiProposalEntity;
 import org.apache.ibatis.annotations.Insert;
@@ -9,6 +10,7 @@ import org.apache.ibatis.annotations.Update;
 
 import java.time.LocalDateTime;
 
+@Mapper
 public interface AiMapper {
 
     String JOB_COLUMNS = 

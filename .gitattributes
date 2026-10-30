@@ -1,5 +1,10 @@
 * text=auto eol=lf
 
+# Maven Wrapper：Windows 的 .cmd 必须是 CRLF，否则部分终端下执行会报错
+mvnw.cmd text eol=crlf
+mvnw text eol=lf
+.mvn/wrapper/maven-wrapper.properties text eol=lf
+
 *.png binary
 *.jpg binary
 *.jpeg binary

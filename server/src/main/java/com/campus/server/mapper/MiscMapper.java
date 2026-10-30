@@ -1,5 +1,6 @@
 package com.campus.server.mapper;
 
+import org.apache.ibatis.annotations.Mapper;
 import com.campus.server.entity.MiscEntities.ActivityEventEntity;
 import com.campus.server.entity.MiscEntities.ExportJobEntity;
 import com.campus.server.entity.ProjectAssetEntity;
@@ -11,6 +12,7 @@ import org.apache.ibatis.annotations.Update;
 import java.time.LocalDateTime;
 import java.util.List;
 
+@Mapper
 public interface MiscMapper {
 
     // ---------------------------------------------------------------- project_assets
