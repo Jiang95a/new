@@ -277,23 +277,32 @@ export const useProjectStore = defineStore('projects', () => {
 
   async function createProjectRemote(input: CreateProjectInput): Promise<ProjectRecord> {
     try {
-      const initialDocument = input.document
-        ? cloneDocument(input.document)
-        : input.templateId
-          ? createDocFromTemplate(input.templateId, createDemoDoc())
-          : createBlankDoc()
       const title = input.title.trim() || '未命名校园活动'
-      initialDocument.title = title.slice(0, 40)
-      initialDocument.slug = uniqueSlug(title)
-      initialDocument.meta = {
-        ...initialDocument.meta,
-        org: input.org?.trim() || initialDocument.meta.org,
+      const remoteTemplate =
+        Boolean(input.templateId) &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(input.templateId ?? '')
+      let initialDocument: Doc | undefined
+      if (input.document) {
+        initialDocument = cloneDocument(input.document)
+      } else if (input.templateId && !remoteTemplate) {
+        initialDocument = createDocFromTemplate(input.templateId, createDemoDoc())
+      } else if (!input.templateId) {
+        initialDocument = createBlankDoc()
       }
-      initialDocument.published = null
+      if (initialDocument) {
+        initialDocument.title = title.slice(0, 40)
+        initialDocument.slug = uniqueSlug(title)
+        initialDocument.meta = {
+          ...initialDocument.meta,
+          org: input.org?.trim() || initialDocument.meta.org,
+        }
+        initialDocument.published = null
+      }
       const remote = fromApi(
         await createProjectApi({
           title,
           activityType: input.type?.trim() || '校园活动',
+          templateId: remoteTemplate ? input.templateId : undefined,
           initialDocument,
           coverTone: 'photo',
           coverCode: 'NEW / DRAFT',

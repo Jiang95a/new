@@ -1,15 +1,16 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import type { Doc } from '@/types/editor'
 import BaseModal from '@/components/ui/BaseModal.vue'
 import Icon from '@/components/ui/Icon.vue'
 import { metaOf } from '@/data/blockCatalog'
-import { buildQuickDoc, createDocFromTemplate, newDocFromBuild, TEMPLATES } from '@/data/templates'
+import { buildQuickDoc, newDocFromBuild } from '@/data/templates'
 import { buildPlanPrompt, localDoc, normalizePlan, parsePlanFromText, planToDoc } from '@/services/planner'
 import { AgentError, askAgent, extractJson, extractPoster, PLAN_SYSTEM_EXTRA, probeAgent } from '@/services/agent'
 import { useEditorStore } from '@/stores/editor'
 import { useToast } from '@/composables/useToast'
 import { uploadAsset } from '@/services/assets'
+import { loadTemplateCatalog, loadTemplateDocument, type TemplateCatalogItem } from '@/services/templates'
 
 type Tab = 'ai' | 'template' | 'poster'
 
@@ -27,6 +28,7 @@ const prompt = ref('')
 const generating = ref(false)
 const step = ref('')
 const errorText = ref('')
+const templates = ref<TemplateCatalogItem[]>([])
 const result = ref<{
   doc: Doc
   source: 'agent' | 'local'
@@ -52,6 +54,10 @@ watch(
     }
   }
 )
+
+onMounted(async () => {
+  templates.value = await loadTemplateCatalog()
+})
 
 /* ------------------------------- 海报解析（多模态） ------------------------------- */
 
@@ -269,8 +275,8 @@ function applyResult(): void {
 
 /* ------------------------------- 模板 / 海报 ------------------------------- */
 
-function applyTemplate(id: string): void {
-  emit('applied', createDocFromTemplate(id, store.doc))
+async function applyTemplate(id: string): Promise<void> {
+  emit('applied', await loadTemplateDocument(id))
 }
 
 function applyPoster(): void {
@@ -410,7 +416,7 @@ const FORM_FIELDS: { key: PosterTextKey; label: string; placeholder: string }[] 
 
       <!-- 模板 -->
       <section v-else-if="tab === 'template'" class="tpl-tab">
-        <article v-for="template in TEMPLATES" :key="template.id" class="tpl-card">
+        <article v-for="template in templates" :key="template.id" class="tpl-card">
           <div
             class="tpl-card__cover"
             :style="{

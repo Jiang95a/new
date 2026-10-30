@@ -126,6 +126,17 @@ public interface MiscMapper {
     @Select("SELECT " + EXPORT_COLUMNS + " FROM export_jobs WHERE id = #{id} LIMIT 1")
     ExportJobEntity findExportJob(@Param("id") String id);
 
+    @Select("""
+            SELECT
+            """ + EXPORT_COLUMNS + """
+              FROM export_jobs
+             WHERE project_id = #{projectId} AND requested_by = #{requestedBy}
+             ORDER BY created_at DESC, id DESC
+             LIMIT 50
+            """)
+    List<ExportJobEntity> listExportJobs(@Param("projectId") String projectId,
+                                         @Param("requestedBy") String requestedBy);
+
     @Update("""
             UPDATE export_jobs
                SET status = #{status}, object_key = #{objectKey}, error_message = #{errorMessage},

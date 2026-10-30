@@ -37,7 +37,7 @@ paths:
             schema:
               $ref: "#/components/schemas/RegisterRequest"
       responses:
-        "201":
+        "200":
           description: Registered
           content:
             application/json:
@@ -92,6 +92,29 @@ paths:
         default:
           $ref: "#/components/responses/Error"
 
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: 退出当前会话
+      operationId: logout
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      ok:
+                        type: boolean
+        default:
+          $ref: "#/components/responses/Error"
+
   /auth/me:
     get:
       tags: [Auth]
@@ -139,6 +162,32 @@ paths:
                     type: array
                     items:
                       $ref: "#/components/schemas/Template"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /templates/{id}:
+    get:
+      tags: [Templates]
+      summary: 模板详情
+      operationId: getTemplate
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Template
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Template"
         default:
           $ref: "#/components/responses/Error"
 
@@ -228,7 +277,7 @@ paths:
                     - $ref: "#/components/schemas/PageDocument"
                     - type: "null"
       responses:
-        "201":
+        "200":
           description: Created
           content:
             application/json:
@@ -330,7 +379,7 @@ paths:
                   type: string
                   maxLength: 160
       responses:
-        "201":
+        "200":
           description: Duplicated
           content:
             application/json:
@@ -532,7 +581,7 @@ paths:
                   enum: [manual, ai]
                   default: manual
       responses:
-        "201":
+        "200":
           description: Version created
           content:
             application/json:
@@ -723,7 +772,7 @@ paths:
                   type: string
                   format: uuid
       responses:
-        "201":
+        "200":
           description: Submitted
           content:
             application/json:
@@ -755,6 +804,45 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /public/activities/{slug}/events:
+    post:
+      tags: [Public Activities]
+      summary: 记录公开页表单交互
+      operationId: recordPublicEvent
+      parameters:
+        - $ref: "#/components/parameters/Slug"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [eventType, pageId]
+              properties:
+                eventType:
+                  type: string
+                  enum: [form_started]
+                pageId:
+                  type: string
+                metadata:
+                  type: object
+                  additionalProperties: true
+      responses:
+        "200":
+          description: Event recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      recorded:
+                        type: boolean
         default:
           $ref: "#/components/responses/Error"
 
@@ -948,6 +1036,28 @@ paths:
                 $ref: "#/components/schemas/Error"
 
   /projects/{projectId}/exports:
+    get:
+      tags: [Submissions]
+      summary: 导出历史
+      operationId: listExports
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "200":
+          description: Export jobs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ExportJob"
+        default:
+          $ref: "#/components/responses/Error"
     post:
       tags: [Submissions]
       summary: 创建 CSV 导出任务
@@ -973,23 +1083,15 @@ paths:
                   type: string
                   format: date-time
       responses:
-        "202":
-          description: Export queued
+        "200":
+          description: Export created
           content:
             application/json:
               schema:
                 type: object
                 properties:
                   data:
-                    type: object
-                    required: [exportId, status]
-                    properties:
-                      exportId:
-                        type: string
-                        format: uuid
-                      status:
-                        type: string
-                        enum: [queued]
+                    $ref: "#/components/schemas/ExportJob"
         default:
           $ref: "#/components/responses/Error"
 
@@ -1016,67 +1118,19 @@ paths:
                 type: object
                 properties:
                   data:
-                    type: object
-                    required: [exportId, status]
-                    properties:
-                      exportId:
-                        type: string
-                        format: uuid
-                      status:
-                        type: string
-                        enum: [queued, running, succeeded, failed, expired]
-                      downloadUrl:
-                        type: [string, "null"]
-                        format: uri
-                      expiresAt:
-                        type: [string, "null"]
-                        format: date-time
+                    $ref: "#/components/schemas/ExportJob"
         default:
           $ref: "#/components/responses/Error"
 
-  /ai/jobs:
-    post:
-      tags: [AI]
-      summary: 创建 AI 任务
-      operationId: createAiJob
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CreateAiJobRequest"
-      responses:
-        "202":
-          description: Job queued
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  data:
-                    type: object
-                    required: [jobId, status]
-                    properties:
-                      jobId:
-                        type: string
-                        format: uuid
-                      status:
-                        type: string
-                        enum: [queued]
-        default:
-          $ref: "#/components/responses/Error"
-
-  /ai/jobs/{jobId}:
+  /exports/{exportId}/download:
     get:
-      tags: [AI]
-      summary: 查询 AI 任务
-      operationId: getAiJob
+      tags: [Submissions]
+      summary: 获取导出文件下载地址
+      operationId: downloadExport
       security:
         - bearerAuth: []
       parameters:
-        - name: jobId
+        - name: exportId
           in: path
           required: true
           schema:
@@ -1084,14 +1138,180 @@ paths:
             format: uuid
       responses:
         "200":
-          description: AI job
+          description: Download URL
           content:
             application/json:
               schema:
                 type: object
                 properties:
                   data:
-                    $ref: "#/components/schemas/AiJob"
+                    type: object
+                    required: [url]
+                    properties:
+                      url:
+                        type: string
+                        format: uri
+        default:
+          $ref: "#/components/responses/Error"
+
+  /ai/chat:
+    post:
+      tags: [AI]
+      summary: 智能体对话
+      operationId: chatWithAgent
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message]
+              properties:
+                message:
+                  type: string
+                thread_id:
+                  type: string
+                system_extra:
+                  type: string
+      responses:
+        "200":
+          description: Agent reply
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    additionalProperties: true
+        "503":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /ai/agent/health:
+    get:
+      tags: [AI]
+      summary: 智能体健康状态
+      operationId: getAgentHealth
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Agent health
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      ok:
+                        type: boolean
+        default:
+          $ref: "#/components/responses/Error"
+
+  /ai/poster/extract:
+    post:
+      tags: [AI]
+      summary: 解析活动海报
+      operationId: extractPoster
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: url
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uri
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                dataUrl:
+                  type: string
+      responses:
+        "200":
+          description: Poster extraction result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    additionalProperties: true
+        default:
+          $ref: "#/components/responses/Error"
+
+  /ai/projects/{projectId}/generate:
+    post:
+      tags: [AI]
+      summary: 生成页面候选提案
+      operationId: generateAiProposal
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [prompt]
+              properties:
+                prompt:
+                  type: string
+                baseRevision:
+                  type: integer
+                  minimum: 0
+                clientRequestId:
+                  type: string
+      responses:
+        "200":
+          description: AI proposal
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/AiProposal"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /ai/proposals/{proposalId}:
+    get:
+      tags: [AI]
+      summary: 查询 AI 提案
+      operationId: getAiProposal
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: proposalId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: AI proposal
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/AiProposal"
         default:
           $ref: "#/components/responses/Error"
 
@@ -1658,6 +1878,30 @@ components:
           type: string
           format: date-time
 
+    ExportJob:
+      type: object
+      required: [id, projectId, status, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        projectId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [queued, running, succeeded, failed, expired]
+        objectKey:
+          type: [string, "null"]
+        errorMessage:
+          type: [string, "null"]
+        createdAt:
+          type: string
+          format: date-time
+        finishedAt:
+          type: [string, "null"]
+          format: date-time
+
     CreateAiJobRequest:
       type: object
       required: [kind, projectId]
@@ -1728,6 +1972,8 @@ components:
       type: object
       required:
         - id
+        - jobId
+        - projectId
         - baseRevision
         - target
         - summary
@@ -1737,6 +1983,12 @@ components:
         - status
       properties:
         id:
+          type: string
+          format: uuid
+        jobId:
+          type: string
+          format: uuid
+        projectId:
           type: string
           format: uuid
         baseRevision:

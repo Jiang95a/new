@@ -91,6 +91,41 @@ public class AiService {
         }
     }
 
+    /** 海报解析统一经业务后端转发，前端不再直连 8000。 */
+    public JsonNode extractPoster(String dataUrl, String imageUrl) {
+        try {
+            JsonNode response;
+            if (imageUrl != null && !imageUrl.isBlank()) {
+                response = agentClient.post()
+                        .uri(uriBuilder -> uriBuilder.path("/poster/extract")
+                                .queryParam("url", imageUrl)
+                                .build())
+                        .retrieve()
+                        .body(JsonNode.class);
+            } else {
+                if (dataUrl == null || dataUrl.isBlank()) {
+                    throw BizException.invalid("dataUrl 或 url 至少提供一个");
+                }
+                ObjectNode payload = JsonUtil.mapper().createObjectNode();
+                payload.put("dataUrl", dataUrl);
+                response = agentClient.post()
+                        .uri("/poster/extract")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(JsonUtil.toJson(payload))
+                        .retrieve()
+                        .body(JsonNode.class);
+            }
+            return response == null ? JsonUtil.mapper().createObjectNode() : response;
+        } catch (BizException ex) {
+            throw ex;
+        } catch (RestClientException ex) {
+            log.warn("调用 agent /poster/extract 失败: {}", ex.getMessage());
+            throw new com.campus.server.common.BizException(
+                    com.campus.server.common.ErrorCode.AGENT_UNAVAILABLE,
+                    "海报识别暂时不可用，请手动填写活动信息");
+        }
+    }
+
     // ================================================================ 生成提案
 
     /**

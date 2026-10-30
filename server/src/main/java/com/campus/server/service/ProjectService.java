@@ -445,18 +445,13 @@ public class ProjectService {
         if (project == null || !"published".equals(project.getStatus())) {
             throw BizException.notFound("活动不存在或未发布");
         }
-        JsonNode document;
-        if (project.getPublishedVersionId() != null) {
-            PageVersionEntity version = versionMapper.findById(project.getPublishedVersionId());
-            document = version == null ? project.getDraftDocument() : version.getDocument();
-        } else {
-            document = project.getDraftDocument();
-        }
+        JsonNode document = publishedDocument(project);
 
         if (countView) {
             ActivityEventEntity event = new ActivityEventEntity();
             event.setProjectId(project.getId());
             event.setEventType("public_page_view");
+            event.setPageId(firstPageId(document));
             event.setMetadata(JsonUtil.mapper().createObjectNode());
             // 埋点失败不能影响浏览
             try {
@@ -471,6 +466,29 @@ public class ProjectService {
                 document, project.getPublishSettings(),
                 project.getActivityType(), project.getCoverTone(),
                 project.getCoverCode(), project.getCoverTitle());
+    }
+
+    /** 公开页匿名事件：只接受表单首次交互，并校验页面确实属于已发布活动。 */
+    public void recordPublicEvent(String slug, Dtos.PublicEventRequest request) {
+        ProjectEntity project = projectMapper.findByPublicSlug(slug);
+        if (project == null || !"published".equals(project.getStatus())) {
+            throw BizException.notFound("活动不存在或未发布");
+        }
+        String eventType = request == null ? null : request.eventType();
+        if (!"form_started".equals(eventType)) {
+            throw BizException.invalid("不支持的事件类型");
+        }
+        JsonNode document = publishedDocument(project);
+        String pageId = request.pageId();
+        if (pageId == null || pageId.isBlank() || !containsPage(document, pageId)) {
+            throw BizException.invalid("pageId 不属于当前活动");
+        }
+        ActivityEventEntity event = new ActivityEventEntity();
+        event.setProjectId(project.getId());
+        event.setEventType(eventType);
+        event.setPageId(pageId);
+        event.setMetadata(request.metadata());
+        miscMapper.insertEvent(event);
     }
 
     /**
@@ -525,6 +543,45 @@ public class ProjectService {
             }
         }
         return "published";
+    }
+
+    private String firstPageId(JsonNode document) {
+        JsonNode pages = document == null ? null : document.get("pages");
+        if (pages == null || !pages.isArray() || pages.isEmpty()) {
+            return null;
+        }
+        JsonNode selected = pages.get(0);
+        for (JsonNode page : pages) {
+            if ("home".equals(page.path("role").asText())) {
+                selected = page;
+                break;
+            }
+        }
+        String id = selected == null ? "" : selected.path("id").asText("");
+        return id.isBlank() ? null : id;
+    }
+
+    private JsonNode publishedDocument(ProjectEntity project) {
+        if (project.getPublishedVersionId() != null) {
+            PageVersionEntity version = versionMapper.findById(project.getPublishedVersionId());
+            if (version != null) {
+                return version.getDocument();
+            }
+        }
+        return project.getDraftDocument();
+    }
+
+    private boolean containsPage(JsonNode document, String pageId) {
+        JsonNode pages = document == null ? null : document.get("pages");
+        if (pages == null || !pages.isArray()) {
+            return false;
+        }
+        for (JsonNode page : pages) {
+            if (pageId.equals(page.path("id").asText())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // ================================================================ 内部

@@ -188,7 +188,7 @@ if ($slug) {
     $r = Hit 'GET' "/public/activities/$slug" $null $null
     Check 'GET /public/activities/{slug}（匿名）' $r.code 200
     $pub = ($r.body | ConvertFrom-Json).data
-    Write-Host "  publicStatus=$($pub.publicStatus) title=$($pub.title)"
+    Write-Host "  status=$($pub.status) title=$($pub.title)"
 }
 
 $r = Hit 'GET' '/public/activities/nonexistent-slug' $null $null
@@ -199,6 +199,9 @@ $ans = @{ 'b2:f1' = '张三'; 'b2:f2' = '2026001' }
 $idem = 'idem-' + [guid]::NewGuid().ToString()
 $firstId = $null
 if ($slug) {
+    $r = Hit 'POST' "/public/activities/$slug/events" @{ eventType = 'form_started'; pageId = 'p1'; metadata = @{ source = 'e2e' } } $null
+    Check 'POST 表单开始事件' $r.code 200
+
     $r = Hit 'POST' "/public/activities/$slug/submissions" @{ pageId = 'p1'; formComponentId = 'b2'; answers = $ans; idempotencyKey = $idem } $null
     Check 'POST 提交（首次）' $r.code 200
     $firstId = ($r.body | ConvertFrom-Json).data.submissionId
@@ -228,12 +231,31 @@ Write-Host "  $($r.body.Substring(0, [Math]::Min(300, $r.body.Length)))"
 $r = Hit 'GET' "/projects/$pid2/analytics/summary" $null $token
 Check 'GET analytics/summary' $r.code 200
 Write-Host "  $($r.body)"
+$sumMain = ($r.body | ConvertFrom-Json).data
+if ($sumMain.formStarted -ge 1 -and $sumMain.conversionRate -gt 0 -and $sumMain.publishedPages -ge 1) {
+    Write-Host "  [PASS] 浏览页面数、form_started 与转化率已产生真实数据" -ForegroundColor Green
+    $pass++
+} else {
+    Write-Host "  [FAIL] 统计埋点仍不完整" -ForegroundColor Red
+    $fail++
+}
 
 Write-Host "`n===== 9. 导出 =====" -ForegroundColor Cyan
 $r = Hit 'POST' "/projects/$pid2/exports" @{} $token
 Check 'POST exports' $r.code 200
 $exp = ($r.body | ConvertFrom-Json).data
 Write-Host "  $($r.body)"
+
+$r = Hit 'GET' "/projects/$pid2/exports" $null $token
+Check 'GET 导出历史' $r.code 200
+$exports = ($r.body | ConvertFrom-Json).data
+if ($exports | Where-Object { $_.id -eq $exp.id }) {
+    Write-Host "  [PASS] 新导出出现在历史列表" -ForegroundColor Green
+    $pass++
+} else {
+    Write-Host "  [FAIL] 新导出没有出现在历史列表" -ForegroundColor Red
+    $fail++
+}
 
 $r = Hit 'GET' "/exports/$($exp.id)/download" $null $token
 Check 'GET 导出下载' $r.code 200
@@ -245,6 +267,10 @@ $r = Hit 'POST' '/auth/register' @{ email = $email2; password = 'Passw0rd!123'; 
 $token2 = ($r.body | ConvertFrom-Json).data.accessToken
 $r = Hit 'GET' "/projects/$pid2" $null $token2
 Check '别人读我的项目应 403/404' $r.code 403
+if ($exp.id) {
+    $r = Hit 'GET' "/exports/$($exp.id)" $null $token2
+    Check '别人读取我的导出任务应 403' $r.code 403
+}
 
 Write-Host "`n===== 11. AI 降级 =====" -ForegroundColor Cyan
 $r = Hit 'POST' '/ai/chat' @{ message = '你好' } $token
@@ -254,6 +280,9 @@ Write-Host "  $($r.body)"
 $r = Hit 'GET' '/ai/agent/health' $null $token
 Check 'GET /ai/agent/health' $r.code 200
 Write-Host "  $($r.body)"
+
+$r = Hit 'POST' '/ai/poster/extract' @{ dataUrl = 'data:image/png;base64,iVBORw0KGgo=' } $token
+Check 'POST /ai/poster/extract（agent 未启动应 503）' $r.code 503
 
 Write-Host "`n===== 12. 登出 =====" -ForegroundColor Cyan
 $r = Hit 'POST' '/auth/logout' @{} $token

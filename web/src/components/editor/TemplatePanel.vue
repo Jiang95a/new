@@ -1,8 +1,14 @@
 <script setup lang="ts">
-import { TEMPLATES } from '@/data/templates'
+import { onMounted, ref } from 'vue'
 import Icon from '@/components/ui/Icon.vue'
+import { loadTemplateCatalog, type TemplateCatalogItem } from '@/services/templates'
 
 const emit = defineEmits<{ use: [id: string]; openCreate: [] }>()
+const templates = ref<TemplateCatalogItem[]>([])
+
+onMounted(async () => {
+  templates.value = await loadTemplateCatalog()
+})
 </script>
 
 <template>
@@ -17,10 +23,10 @@ const emit = defineEmits<{ use: [id: string]; openCreate: [] }>()
     </button>
 
     <p class="tpl__title">
-      场景模板<span>{{ TEMPLATES.length }}</span>
+      场景模板<span>{{ templates.length }}</span>
     </p>
 
-    <article v-for="template in TEMPLATES" :key="template.id" class="tcard">
+    <article v-for="template in templates" :key="template.id" class="tcard">
       <div
         class="tcard__cover"
         :style="{

@@ -20,6 +20,7 @@ import { formatTime } from '@/utils/misc'
 import type { BlockType, Doc } from '@/types/editor'
 import { getDraft, putDraft } from '@/services/draft'
 import { ApiError } from '@/services/http'
+import { loadTemplateDocument } from '@/services/templates'
 
 type LeftTab = 'pages' | 'components' | 'templates'
 type RightTab = 'props' | 'style' | 'ai'
@@ -150,9 +151,14 @@ function onApplied(next: Doc): void {
   toast.pushToast(`已应用「${next.title}」，可以继续编辑`, 'success')
 }
 
-function useTemplate(id: string): void {
-  store.useTemplate(id)
-  toast.pushToast('模板已套用，所有修改可以撤销', 'success')
+async function useTemplate(id: string): Promise<void> {
+  try {
+    const document = await loadTemplateDocument(id)
+    store.applyDoc(document, true)
+    toast.pushToast('模板已套用，所有修改可以撤销', 'success')
+  } catch (error) {
+    toast.pushToast(error instanceof Error ? error.message : '模板加载失败', 'warn')
+  }
 }
 
 function requestPalette(): void {

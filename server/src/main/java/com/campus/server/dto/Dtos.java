@@ -170,6 +170,9 @@ public final class Dtos {
     ) {
     }
 
+    public record PublicEventRequest(String eventType, String pageId, JsonNode metadata) {
+    }
+
     public record SubmissionResult(String submissionId, String status, String submittedAt) {
     }
 

@@ -1,19 +1,9 @@
-/**
- * 智能体 HTTP 客户端。
- *
- * 后端（agent/，FastAPI）目前只暴露通用聊天能力：
- *   GET  /health
- *   POST /chat            {message, thread_id?, system_extra?, temperature?}
- *   POST /chat/stream     SSE
- *   GET  /chat/{id}/history
- *
- * 所以页面生成 = 让它按约定吐结构化 JSON，前端再解析成受控组件；
- * 解析不出来就退回文本结构解析，再不行就退回本地模板（见 planner.ts）。
- * 任何一步失败都不能让编辑器卡死——这是硬要求。
- */
+import { apiRequest, ApiError, readData } from './http'
 
-const STORAGE_KEY = 'diy-campus:agent-base'
-const DEFAULT_BASE = (import.meta.env.VITE_AGENT_BASE_URL as string | undefined) ?? 'http://127.0.0.1:8000'
+/**
+ * 智能体能力统一经业务后端 /ai/**。
+ * 浏览器不再直连 FastAPI 8000，鉴权、审计、超时和降级都由 8080 负责。
+ */
 
 export type AgentErrorCode = 'OFFLINE' | 'NOT_CONFIGURED' | 'FORMAT' | 'IMAGE' | 'FAILED'
 
@@ -52,62 +42,20 @@ export interface AgentReply {
   flags: string[]
 }
 
-export function getAgentBase(): string {
-  try {
-    return localStorage.getItem(STORAGE_KEY)?.trim() || DEFAULT_BASE
-  } catch {
-    return DEFAULT_BASE
+function toAgentError(error: unknown): AgentError {
+  if (error instanceof AgentError) return error
+  if (error instanceof ApiError) {
+    const code: AgentErrorCode =
+      error.status === 0
+        ? 'OFFLINE'
+        : error.status === 503
+          ? 'NOT_CONFIGURED'
+          : error.status === 422
+            ? 'IMAGE'
+            : 'FAILED'
+    return new AgentError(code, error.message, error.status)
   }
-}
-
-export function setAgentBase(value: string): void {
-  try {
-    const trimmed = value.trim().replace(/\/+$/, '')
-    if (trimmed) localStorage.setItem(STORAGE_KEY, trimmed)
-    else localStorage.removeItem(STORAGE_KEY)
-  } catch {
-    /* 隐私模式下 localStorage 可能不可用，忽略即可 */
-  }
-}
-
-async function requestJson<T>(path: string, init: RequestInit, timeoutMs: number): Promise<T> {
-  const controller = new AbortController()
-  const timer = window.setTimeout(() => controller.abort(), timeoutMs)
-  let response: Response
-  try {
-    response = await fetch(`${getAgentBase()}${path}`, {
-      ...init,
-      signal: controller.signal,
-    })
-  } catch (error) {
-    if (error instanceof DOMException && error.name === 'AbortError') {
-      throw new AgentError('OFFLINE', '智能体响应超时')
-    }
-    throw new AgentError('OFFLINE', '连不上智能体服务，请确认后端已启动')
-  } finally {
-    window.clearTimeout(timer)
-  }
-
-  if (response.status === 503) {
-    let message = '智能体还没配置模型 Key，暂时只能走本地规则'
-    try {
-      const body = (await response.json()) as { detail?: { message?: string } }
-      if (body.detail?.message) message = body.detail.message
-    } catch {
-      /* 忽略 */
-    }
-    throw new AgentError('NOT_CONFIGURED', message, 503)
-  }
-
-  if (!response.ok) {
-    throw new AgentError('FAILED', `智能体返回 ${response.status}`, response.status)
-  }
-
-  try {
-    return (await response.json()) as T
-  } catch {
-    throw new AgentError('FORMAT', '智能体返回的不是合法 JSON')
-  }
+  return new AgentError('FAILED', error instanceof Error ? error.message : '智能体调用失败')
 }
 
 export async function probeAgent(timeoutMs = 1800): Promise<{
@@ -116,10 +64,11 @@ export async function probeAgent(timeoutMs = 1800): Promise<{
   error?: string
 }> {
   try {
-    const health = await requestJson<AgentHealth>('/health', { method: 'GET' }, timeoutMs)
-    return { ok: Boolean(health?.ok), health }
+    const data = readData<{ ok?: boolean }>(await apiRequest('/ai/agent/health', { method: 'GET' }, { timeoutMs }))
+    const health: AgentHealth = { ok: Boolean(data.ok) }
+    return { ok: health.ok, health }
   } catch (error) {
-    const message = error instanceof AgentError ? error.message : '智能体不可用'
+    const message = toAgentError(error).message
     return { ok: false, error: message }
   }
 }
@@ -132,22 +81,27 @@ export async function askAgent(
   if (options.threadId) payload.thread_id = options.threadId
   if (options.systemExtra) payload.system_extra = options.systemExtra
 
-  const data = await requestJson<{
+  let raw: unknown
+  try {
+    raw = await apiRequest(
+      '/ai/chat',
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      },
+      { timeoutMs: options.timeoutMs ?? 60000 }
+    )
+  } catch (error) {
+    throw toAgentError(error)
+  }
+  const data = readData<{
     thread_id?: string
     reply?: string
     latency_ms?: number
     tool_calls?: { name?: string; result?: string }[]
     rag_hits?: number
     flags?: string[]
-  }>(
-    '/chat',
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    },
-    options.timeoutMs ?? 60000
-  )
+  }>(raw)
 
   return {
     threadId: data.thread_id ?? '',
@@ -241,42 +195,20 @@ export interface PosterExtractResult {
  * 后端保证：认不出的字段是空字符串，绝不编。前端只负责把空着的留给用户。
  */
 export async function extractPoster(dataUrl: string, timeoutMs = 90000): Promise<PosterExtractResult> {
-  const controller = new AbortController()
-  const timer = window.setTimeout(() => controller.abort(), timeoutMs)
   const remoteUrl = /^https?:\/\//i.test(dataUrl)
-  const endpoint = remoteUrl
-    ? `${getAgentBase()}/poster/extract?url=${encodeURIComponent(dataUrl)}`
-    : `${getAgentBase()}/poster/extract`
-
-  let response: Response
+  let body: any
   try {
-    response = await fetch(endpoint, {
-      method: 'POST',
-      headers: remoteUrl ? undefined : { 'Content-Type': 'application/json' },
-      body: remoteUrl ? undefined : JSON.stringify({ dataUrl }),
-      signal: controller.signal,
-    })
+    const raw = await apiRequest(
+      `/ai/poster/extract${remoteUrl ? `?url=${encodeURIComponent(dataUrl)}` : ''}`,
+      {
+        method: 'POST',
+        body: remoteUrl ? undefined : JSON.stringify({ dataUrl }),
+      },
+      { timeoutMs }
+    )
+    body = readData<any>(raw)
   } catch (error) {
-    if (error instanceof DOMException && error.name === 'AbortError') {
-      throw new AgentError('OFFLINE', '读图超时了，换张小一点的图试试')
-    }
-    throw new AgentError('OFFLINE', '连不上智能体服务')
-  } finally {
-    window.clearTimeout(timer)
-  }
-
-  let body: any = null
-  try {
-    body = await response.json()
-  } catch {
-    body = null
-  }
-
-  if (!response.ok) {
-    const message = body?.detail?.message ?? `读图失败（${response.status}）`
-    const code: AgentErrorCode =
-      response.status === 503 ? 'NOT_CONFIGURED' : response.status === 422 ? 'IMAGE' : 'FAILED'
-    throw new AgentError(code, message, response.status)
+    throw toAgentError(error)
   }
 
   const info = (body?.info ?? {}) as PosterInfo

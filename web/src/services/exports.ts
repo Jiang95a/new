@@ -14,6 +14,11 @@ export async function createExport(projectId: string): Promise<ExportJob> {
   return readData<ExportJob>(await apiRequest(`/projects/${projectId}/exports`, { method: 'POST' }))
 }
 
+export async function listExports(projectId: string): Promise<ExportJob[]> {
+  const data = readData<ExportJob[]>(await apiRequest(`/projects/${projectId}/exports`))
+  return Array.isArray(data) ? data : []
+}
+
 export async function getExport(id: string): Promise<ExportJob> {
   return readData<ExportJob>(await apiRequest(`/exports/${id}`))
 }

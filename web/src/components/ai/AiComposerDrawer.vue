@@ -205,9 +205,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
         </header>
 
         <div class="ai-drawer__body">
-          <p class="ai-drawer__hint">
-            说一句你要办的活动，它直接给你排好页面结构，然后一键建成项目进编辑器改。
-          </p>
+          <p class="ai-drawer__hint">说一句你要办的活动，它直接给你排好页面结构，然后一键建成项目进编辑器改。</p>
 
           <textarea
             ref="textareaRef"

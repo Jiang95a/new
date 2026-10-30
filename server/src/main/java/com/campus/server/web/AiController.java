@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
@@ -42,6 +43,15 @@ public class AiController {
     @GetMapping("/agent/health")
     public ApiResponse.Envelope<Map<String, Object>> agentHealth() {
         return ApiResponse.ok(Map.of("ok", aiService.agentAlive()));
+    }
+
+    @PostMapping("/poster/extract")
+    public ApiResponse.Envelope<JsonNode> extractPoster(
+            @RequestParam(required = false) String url,
+            @RequestBody(required = false) Map<String, Object> body) {
+        String dataUrl = body == null || body.get("dataUrl") == null
+                ? null : String.valueOf(body.get("dataUrl"));
+        return ApiResponse.ok(aiService.extractPoster(dataUrl, url));
     }
 
     /** 按一句话需求生成候选页面，返回 ai_proposals 记录（不直接改草稿）。 */

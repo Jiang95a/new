@@ -12,6 +12,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Map;
+
 /**
  * 公开活动页：不需要登录，任何人凭 slug 访问。
  *
@@ -60,5 +62,13 @@ public class PublicController {
     public ApiResponse.Envelope<Dtos.SubmissionResult> submit(@PathVariable String slug,
                                                               @RequestBody Dtos.SubmissionRequest request) {
         return ApiResponse.ok(submissionService.submit(slug, request));
+    }
+
+    @PostMapping("/activities/{slug}/events")
+    public ApiResponse.Envelope<Map<String, Object>> recordEvent(
+            @PathVariable String slug,
+            @RequestBody Dtos.PublicEventRequest request) {
+        projectService.recordPublicEvent(slug, request);
+        return ApiResponse.ok(Map.of("recorded", true));
     }
 }

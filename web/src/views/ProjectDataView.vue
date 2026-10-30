@@ -7,7 +7,7 @@ import { useProjectStore, type ProjectRecord } from '@/stores/projects'
 import { useToast } from '@/composables/useToast'
 import { getAnalyticsSummary, type AnalyticsSummary } from '@/services/analytics'
 import { listSubmissions, type SubmissionRecord, type SubmissionStatus } from '@/services/submissions'
-import { createExport, getExport, getExportDownloadUrl, type ExportJob } from '@/services/exports'
+import { createExport, getExport, getExportDownloadUrl, listExports, type ExportJob } from '@/services/exports'
 
 type DataTab = 'analytics' | 'submissions' | 'exports'
 
@@ -167,7 +167,17 @@ function upsertExport(job: ExportJob): void {
 }
 
 async function loadExports(): Promise<void> {
-  exports.value = restoreExports()
+  const localJobs = restoreExports()
+  let remoteJobs: ExportJob[] = []
+  try {
+    remoteJobs = await listExports(projectId.value)
+  } catch {
+    // 后端暂时不可用时保留浏览器内导出记录。
+  }
+  const merged = new Map<string, ExportJob>()
+  for (const job of localJobs) merged.set(job.id, job)
+  for (const job of remoteJobs) merged.set(job.id, { ...merged.get(job.id), ...job })
+  exports.value = [...merged.values()]
   const snapshots = await Promise.allSettled(
     exports.value.map(async (job) => ({ job, remote: await getExport(job.id) }))
   )

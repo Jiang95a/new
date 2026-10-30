@@ -7,7 +7,7 @@
 | 目录 | 是什么 | 技术栈 | 端口 |
 |---|---|---|---|
 | `web/` | 前端编辑器（多页面 PageDocument 编辑与实时预览） | Vue 3 + Vite + TypeScript + Pinia | 5173 |
-| `server/` | 后端 API（待搭建） | 待定 + **MySQL 8** | 8080 |
+| `server/` | 业务 API、JWT、草稿版本、报名、统计与导出 | Spring Boot 3 + MyBatis + **MySQL 8** | 8080 |
 | `agent/` | 智能体服务 | FastAPI + LangChain / LangGraph | 8000 |
 
 `docs/` 是三边共用的资料，不是谁的私有目录：
@@ -49,7 +49,14 @@ python selftest.py --live     # 额外真调一次模型（几厘钱）
 ### 2. 后端
 
 ```powershell
-cd server        # 目录已建，内容待补（见 server/README.md）
+cd server
+.\dev.ps1
+```
+
+后端默认地址为 `http://127.0.0.1:8080/api/v1`，健康检查：
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8080/api/v1/health
 ```
 
 ### 3. 前端
@@ -70,7 +77,9 @@ corepack pnpm dev
   - 离线自检 8/8，单元测试 98 条全过；deepseek 出方案、qwen3.8-max 读海报都实测过。
   - 新增接口：`POST /poster/extract`、`POST /kb/search`、`GET /kb/stats`、`POST /kb/rebuild`、`GET /mcp/manifest`、`POST /mcp/rpc`、`GET /audit/logs`。详见 [`agent/README.md`](./agent/README.md)。
 - 前端已接上：创建弹窗的「上传海报」会真调视觉模型预填字段（认不出的留空，不编），AI 面板会显示本轮带了几条资料、调了什么工具。
-- 后端：未开始。
+- 后端：已实现 JWT 登录、项目与草稿乐观锁、发布版本、公开报名、统计埋点、CSV 导出、素材上传和 AI 提案采纳。
+- 前端模板优先读取后端 `/templates`，后端不可用时自动回退本地模板。
+- AI 对话和海报解析统一通过 8080 业务后端转发到 agent。
 
 ## 约定
 

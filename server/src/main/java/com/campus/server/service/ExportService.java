@@ -28,13 +28,16 @@ public class ExportService {
     private final SubmissionService submissionService;
     private final FileStorage storage;
     private final com.campus.server.config.AppProperties props;
+    private final ProjectService projectService;
 
     public ExportService(MiscMapper miscMapper, SubmissionService submissionService,
-                         FileStorage storage, com.campus.server.config.AppProperties props) {
+                         FileStorage storage, com.campus.server.config.AppProperties props,
+                         ProjectService projectService) {
         this.miscMapper = miscMapper;
         this.submissionService = submissionService;
         this.storage = storage;
         this.props = props;
+        this.projectService = projectService;
     }
 
     @Transactional
@@ -69,7 +72,14 @@ public class ExportService {
         if (job == null) {
             throw BizException.notFound("导出任务不存在");
         }
+        requireOwner(job);
         return toDto(job);
+    }
+
+    public List<Dtos.ExportJobDto> list(String projectId) {
+        projectService.loadOwned(projectId);
+        String userId = com.campus.server.security.CurrentUser.require().userId();
+        return miscMapper.listExportJobs(projectId, userId).stream().map(this::toDto).toList();
     }
 
     public String downloadUrl(String exportId) {
@@ -117,5 +127,12 @@ public class ExportService {
         return new Dtos.ExportJobDto(job.getId(), job.getProjectId(), job.getStatus(),
                 job.getObjectKey(), job.getErrorMessage(), Ids.iso(job.getCreatedAt()),
                 Ids.iso(job.getFinishedAt()));
+    }
+
+    private void requireOwner(ExportJobEntity job) {
+        String userId = com.campus.server.security.CurrentUser.require().userId();
+        if (!userId.equals(job.getRequestedBy())) {
+            throw BizException.forbidden("这个导出任务不属于你");
+        }
     }
 }

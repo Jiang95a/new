@@ -49,6 +49,11 @@ public class AnalyticsController {
         return ApiResponse.ok(exportService.create(projectId));
     }
 
+    @GetMapping("/projects/{projectId}/exports")
+    public ApiResponse.Envelope<java.util.List<Dtos.ExportJobDto>> listExports(@PathVariable String projectId) {
+        return ApiResponse.ok(exportService.list(projectId));
+    }
+
     @GetMapping("/exports/{exportId}")
     public ApiResponse.Envelope<Dtos.ExportJobDto> getExport(@PathVariable String exportId) {
         return ApiResponse.ok(exportService.get(exportId));

@@ -8,7 +8,7 @@ import { useToast } from '@/composables/useToast'
 import { useEditorStore } from '@/stores/editor'
 import { useProjectStore } from '@/stores/projects'
 import { themeCssVars } from '@/utils/theme'
-import { getPublicActivity, submitForm } from '@/services/public'
+import { getPublicActivity, recordPublicEvent, submitForm } from '@/services/public'
 import { ApiError } from '@/services/http'
 import type { Doc } from '@/types/editor'
 
@@ -21,6 +21,7 @@ const remoteDocument = ref<Doc | null>(null)
 const remoteActivity = ref<{ name: string; slug: string; status: string } | null>(null)
 const publicState = ref<'loading' | 'ready' | 'offline' | 'not-found' | 'error'>('loading')
 const submitting = ref(false)
+const formStartedPages = new Set<string>()
 
 const slug = computed(() => String(route.params.slug ?? ''))
 const project = computed(() => projectStore.getBySlug(slug.value))
@@ -72,6 +73,21 @@ const errors = reactive<Record<string, boolean>>({})
 function setAnswer(key: string, value: string | string[]): void {
   answers[key] = value
   if (errors[key]) delete errors[key]
+  void recordFormStarted()
+}
+
+function recordFormStarted(): void {
+  const page = currentPage.value
+  if (!page || !page.blocks.some((block) => ['form', 'radio', 'checkbox'].includes(block.type))) return
+  if (formStartedPages.has(page.id)) return
+  formStartedPages.add(page.id)
+  void recordPublicEvent(slug.value, {
+    eventType: 'form_started',
+    pageId: page.id,
+    metadata: { source: 'web' },
+  }).catch(() => {
+    // 埋点失败不能阻塞表单填写。
+  })
 }
 
 function clearError(key: string): void {

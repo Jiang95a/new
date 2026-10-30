@@ -1,13 +1,16 @@
 # DIY-campus · 校园轻活动 AI DIY 工坊（前端）
 
-面向社团 / 班团活动负责人的移动端活动页制作工具。当前版本是**纯前端可演示版**：
-手动选组件搭页面、AI（或本地规则）一句话生成、可视化编辑、质量检查、手机预览、发布二维码、导出静态页，
-整条链路都能跑通，数据全部存在浏览器本地。
+面向社团 / 班团活动负责人的移动端活动页制作工具。当前版本已接入 Spring Boot 与
+MySQL：登录、项目草稿、发布、报名、统计和导出走真实接口；后端不可用时仍保留本地模板和本地草稿降级能力。
 
 ## 页面路由
 
 - `/projects`：项目工作台
 - `/projects/new`：新建活动
+- `/templates`：后端模板目录
+- `/projects/:projectId/analytics`：分析统计
+- `/projects/:projectId/submissions`：报名数据
+- `/projects/:projectId/exports`：CSV 导出
 - `/editor/:projectId`：三栏 DIY 编辑器
 - `/p/:slug`：移动端公开活动页
 
@@ -124,15 +127,14 @@ src/
 
 - `type` 只认 13 种受控组件，未知类型会被丢掉，不会执行任何 HTML/JS（`normalizePlan` 里做白名单校验）
 - `role` 只用 `home / content / form / success`，按钮 `action.targetRole` 用它找目标页
-- 智能体地址：默认 `http://127.0.0.1:8000`，可在 AI 面板「智能体设置」里改（存 localStorage），也支持 `VITE_AGENT_BASE_URL` 环境变量
-- 后端接好之后，把 `stores/editor.ts` 的保存 / 发布换成真实接口，其余组件不用动
+- 浏览器只访问 `VITE_API_BASE_URL`；AI 对话和海报解析统一经 `8080/api/v1/ai/**` 转发到 agent
+- 项目、草稿、发布、报名、统计和导出已接真实后端，离线时保留模板与本地草稿降级
 
-## 还没做的（按 PRD 属于后端 / 下一版）
+## 还没做的（下一版）
 
-- 真实登录、项目云同步、多人协作
-- 报名数据收集与 CSV 导出、投票/打卡统计
-- 海报 OCR（现在是「离线演示」占位：不让用户以为已经识别了）
+- 多人实时协作与成员权限
 - 微信小程序原生能力、自定义域名、在线支付
+- 生产环境对象存储与邮件/短信通知
 
 ## 约定
 

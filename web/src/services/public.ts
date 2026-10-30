@@ -52,3 +52,21 @@ export async function submitForm(
     )
   )
 }
+
+export async function recordPublicEvent(
+  slug: string,
+  input: {
+    eventType: 'form_started'
+    pageId: string
+    metadata?: Record<string, unknown>
+  }
+): Promise<void> {
+  await apiRequest(
+    `/public/activities/${encodeURIComponent(slug)}/events`,
+    {
+      method: 'POST',
+      body: JSON.stringify(input),
+    },
+    { auth: false }
+  )
+}

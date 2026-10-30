@@ -1,6 +1,6 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia } from 'pinia'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import App from '@/App.vue'
 import { appRoutes } from '@/router'
@@ -19,6 +19,7 @@ describe('Vue 前端路由冒烟测试', () => {
   it.each(cases)('$path 可以渲染', async ({ path, selector, text }) => {
     localStorage.clear()
     localStorage.setItem('diy-campus:access-token', 'test-token')
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('offline')))
     const router = createRouter({
       history: createMemoryHistory(),
       routes: appRoutes,
@@ -33,8 +34,14 @@ describe('Vue 前端路由冒烟测试', () => {
     })
 
     await flushPromises()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    await flushPromises()
     expect(wrapper.find(selector).exists()).toBe(true)
     expect(wrapper.text()).toContain(text)
     wrapper.unmount()
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
   })
 })

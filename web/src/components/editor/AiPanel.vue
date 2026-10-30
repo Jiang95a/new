@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useEditorStore } from '@/stores/editor'
-import { AgentError, askAgent, getAgentBase, probeAgent, setAgentBase } from '@/services/agent'
+import { AgentError, askAgent, probeAgent } from '@/services/agent'
 import { describeDocForAgent } from '@/services/planner'
 import { localReply, QUICK_PROMPTS, suggestFor } from '@/services/copilot'
 import { metaOf } from '@/data/blockCatalog'
@@ -34,8 +34,6 @@ const messages = ref<ChatItem[]>([
 
 const status = ref<'unknown' | 'online' | 'offline'>('unknown')
 const health = ref<string>('')
-const baseUrl = ref(getAgentBase())
-const showSettings = ref(false)
 const input = ref('')
 const sending = ref(false)
 const threadId = ref('')
@@ -77,12 +75,6 @@ async function refreshStatus(): Promise<void> {
 }
 
 onMounted(refreshStatus)
-
-function saveBase(): void {
-  setAgentBase(baseUrl.value)
-  toast.pushToast('已保存智能体地址，正在重连…', 'info')
-  void refreshStatus()
-}
 
 function selectedSummary(): string {
   const block = store.selectedBlock
@@ -169,24 +161,10 @@ function dismissSuggestion(id: string): void {
           {{ statusLabel }}
         </p>
       </div>
-      <button type="button" class="icon-btn icon-btn--sm" title="智能体设置" @click="showSettings = !showSettings">
-        <Icon name="sliders" :size="14" />
+      <button type="button" class="icon-btn icon-btn--sm" title="重新检测智能体" @click="refreshStatus">
+        <Icon name="refresh" :size="14" />
       </button>
     </header>
-
-    <div v-if="showSettings" class="ai__settings">
-      <label class="field">
-        <span class="field__label">智能体地址</span>
-        <input v-model="baseUrl" class="input" placeholder="http://127.0.0.1:8000" />
-      </label>
-      <div class="ai__settings-actions">
-        <button type="button" class="btn btn--sm btn--primary" @click="saveBase">保存并重连</button>
-        <button type="button" class="btn btn--sm btn--ghost" @click="refreshStatus">重新检测</button>
-      </div>
-      <p class="hint">
-        后端 agent 启动后（默认 8000 端口）这里会变绿。连不上也照样能编辑、 能用本地规则生成和建议，只是回答没那么聪明。
-      </p>
-    </div>
 
     <button type="button" class="ai__generate" @click="emit('generate')">
       <span class="ai__generate-icon"><Icon name="wand" :size="15" /></span>

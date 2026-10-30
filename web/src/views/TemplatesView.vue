@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import WorkspaceShell from '@/components/studio/WorkspaceShell.vue'
 import Icon from '@/components/ui/Icon.vue'
-import { TEMPLATES } from '@/data/templates'
 import { useAiDrawer } from '@/composables/useAiDrawer'
 import { useToast } from '@/composables/useToast'
 import { useProjectStore } from '@/stores/projects'
+import { loadTemplateCatalog, type TemplateCatalogItem } from '@/services/templates'
 
 /**
  * 模板灵感页。
@@ -15,8 +15,8 @@ import { useProjectStore } from '@/stores/projects'
  * 锚点分区，同一个页面内点它，vue-router 不会滚动，表现就是"点了没反应"。
  * 现在给它一条真路由，模板能预览、能一键建成项目。
  *
- * 模板数据目前来自前端 data/templates.ts；后端 GET /templates 通了之后，
- * 这里换成远程列表即可（卡片结构不用动）。
+ * 模板优先读取后端 GET /templates；后端不可用时由 services/templates.ts
+ * 自动回退到 data/templates.ts，保证离线演示仍可用。
  */
 
 const router = useRouter()
@@ -25,6 +25,7 @@ const projectStore = useProjectStore()
 const { openDrawer } = useAiDrawer()
 
 const creatingId = ref('')
+const catalog = ref<TemplateCatalogItem[]>([])
 
 interface TemplateCard {
   id: string
@@ -40,7 +41,7 @@ interface TemplateCard {
 }
 
 const cards = computed<TemplateCard[]>(() =>
-  TEMPLATES.map((template) => {
+  catalog.value.map((template) => {
     const build = template.build()
     return {
       id: template.id,
@@ -56,6 +57,10 @@ const cards = computed<TemplateCard[]>(() =>
     }
   })
 )
+
+onMounted(async () => {
+  catalog.value = await loadTemplateCatalog()
+})
 
 async function useTemplate(card: TemplateCard): Promise<void> {
   if (creatingId.value) return

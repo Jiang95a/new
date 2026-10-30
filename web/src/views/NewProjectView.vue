@@ -1,14 +1,15 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import WorkspaceShell from '@/components/studio/WorkspaceShell.vue'
 import Icon from '@/components/ui/Icon.vue'
-import { TEMPLATES } from '@/data/templates'
 import { useProjectStore } from '@/stores/projects'
+import { loadTemplateCatalog, type TemplateCatalogItem } from '@/services/templates'
 
 const router = useRouter()
 const projectStore = useProjectStore()
 const selectedTemplate = ref('recruit')
+const templates = ref<TemplateCatalogItem[]>([])
 const title = ref('摄影社 2026 秋季招新')
 const org = ref('光影摄影社')
 const prompt = ref(
@@ -17,12 +18,19 @@ const prompt = ref(
 
 let pendingProjectId = ''
 
+onMounted(async () => {
+  templates.value = await loadTemplateCatalog()
+  if (!templates.value.some((item) => item.id === selectedTemplate.value)) {
+    selectedTemplate.value = templates.value[0]?.id ?? ''
+  }
+})
+
 async function ensureProject() {
   if (pendingProjectId) {
     const existing = projectStore.getById(pendingProjectId)
     if (existing) return existing
   }
-  const template = TEMPLATES.find((item) => item.id === selectedTemplate.value)
+  const template = templates.value.find((item) => item.id === selectedTemplate.value)
   const project = await projectStore.createProjectRemote({
     title: title.value,
     org: org.value,
@@ -44,7 +52,12 @@ async function openCreate(tab: 'ai' | 'poster'): Promise<void> {
 }
 
 function templateTone(id: string): string {
-  return { recruit: 'photo', signup: 'event', vote: 'vote', checkin: 'habit' }[id] ?? 'event'
+  const category = templates.value.find((item) => item.id === id)?.category
+  return (
+    { recruit: 'photo', recruitment: 'photo', signup: 'event', registration: 'event', vote: 'vote', checkin: 'habit' }[
+      category || id
+    ] ?? 'event'
+  )
 }
 </script>
 
@@ -101,7 +114,7 @@ function templateTone(id: string): string {
           </div>
           <div id="templates" class="template-grid">
             <label
-              v-for="template in TEMPLATES"
+              v-for="template in templates"
               :key="template.id"
               class="template-option"
               :class="`template-option--${templateTone(template.id)}`"
