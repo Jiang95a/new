@@ -19,6 +19,11 @@
       "options": {
         "cwd": "${workspaceFolder}/web"
       },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "campus-dev"
+      },
       "problemMatcher": []
     },
     {
@@ -72,7 +77,113 @@
         "cwd": "${workspaceFolder}"
       },
       "problemMatcher": []
+    },
+    {
+      "label": "后端: 启动",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\server\\dev.ps1"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}\\server"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "campus-dev"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "前端: 启动（本地依赖）",
+      "type": "shell",
+      "command": "node",
+      "args": [
+        "node_modules/vite/bin/vite.js",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "5173"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}\\web"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "campus-dev"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "全栈: 启动前后端",
+      "dependsOrder": "parallel",
+      "dependsOn": ["后端: 启动", "前端: 启动（本地依赖）"],
+      "presentation": {
+        "reveal": "always",
+        "focus": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "后端: 单元测试",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\server\\dev.ps1",
+        "test"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}\\server"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "后端: 运行 E2E",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\server\\e2e-test.ps1"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}\\server"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "打开前端页面",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-Command",
+        "Start-Process 'http://127.0.0.1:5173/login'"
+      ],
+      "presentation": {
+        "reveal": "silent"
+      },
+      "problemMatcher": []
     }
   ]
 }
-
