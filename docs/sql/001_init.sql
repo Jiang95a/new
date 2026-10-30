@@ -79,6 +79,12 @@ CREATE TABLE IF NOT EXISTS projects (
   template_id          CHAR(36)     NULL,
   title                VARCHAR(160) NOT NULL,
   description          TEXT         NULL,
+  -- 封面四件套：对齐 ProjectEntity 的 activityType / coverTone / coverCode / coverTitle，
+  -- 也对应前端 ProjectRecord 的同名字段。缺了这四列，项目列表一查就 Unknown column。
+  activity_type        VARCHAR(40)  NOT NULL DEFAULT '校园活动',
+  cover_tone           VARCHAR(32)  NOT NULL DEFAULT 'photo',
+  cover_code           VARCHAR(32)  NOT NULL DEFAULT 'ACTIVITY',
+  cover_title          VARCHAR(160) NOT NULL DEFAULT '',
   status               VARCHAR(20)  NOT NULL DEFAULT 'draft',
   draft_document       JSON         NOT NULL DEFAULT (JSON_OBJECT()),
   draft_revision       BIGINT       NOT NULL DEFAULT 0,
