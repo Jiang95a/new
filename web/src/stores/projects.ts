@@ -205,7 +205,8 @@ export const useProjectStore = defineStore('projects', () => {
     remoteError.value = ''
     try {
       const rows = await listProjectsApi({ page: 1, pageSize: 100, sort: 'updated_at' })
-      if (rows.length) projects.value = rows.map(fromApi)
+      // 后端成功返回时以后端数据为准；空数组也是有效结果，不能再回填本地示例项目。
+      projects.value = rows.map(fromApi)
     } catch (error) {
       remoteError.value = error instanceof Error ? error.message : '项目列表加载失败'
     } finally {

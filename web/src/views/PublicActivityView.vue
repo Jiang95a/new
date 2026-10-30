@@ -9,6 +9,7 @@ import { useEditorStore } from '@/stores/editor'
 import { useProjectStore } from '@/stores/projects'
 import { themeCssVars } from '@/utils/theme'
 import { getPublicActivity, submitForm } from '@/services/public'
+import { ApiError } from '@/services/http'
 import type { Doc } from '@/types/editor'
 
 const route = useRoute()
@@ -18,12 +19,16 @@ const editorStore = useEditorStore()
 const toast = useToast()
 const remoteDocument = ref<Doc | null>(null)
 const remoteActivity = ref<{ name: string; slug: string; status: string } | null>(null)
+const publicState = ref<'loading' | 'ready' | 'offline' | 'not-found' | 'error'>('loading')
 const submitting = ref(false)
 
 const slug = computed(() => String(route.params.slug ?? ''))
 const project = computed(() => projectStore.getBySlug(slug.value))
-const document = computed(() => remoteDocument.value ?? project.value?.document ?? editorStore.doc)
-const pages = computed(() => document.value.pages ?? [])
+const fallbackDocument = computed(() => project.value?.document ?? editorStore.doc)
+const document = computed(
+  () => remoteDocument.value ?? (publicState.value === 'offline' ? fallbackDocument.value : null)
+)
+const pages = computed(() => document.value?.pages ?? [])
 const currentPageId = ref('')
 const currentPage = computed(
   () =>
@@ -32,11 +37,34 @@ const currentPage = computed(
     pages.value[0]
 )
 const visibleBlocks = computed(() => currentPage.value?.blocks.filter((block) => !block.hidden) ?? [])
-const themeVars = computed(() => themeCssVars(document.value.theme))
+const themeVars = computed(() => themeCssVars(document.value?.theme ?? editorStore.doc.theme))
 const shareUrl = computed(
   () =>
-    project.value?.publicUrl || document.value.published?.url || `${window.location.origin}/p/${document.value.slug}`
+    project.value?.publicUrl ||
+    document.value?.published?.url ||
+    `${window.location.origin}/p/${document.value?.slug ?? slug.value}`
 )
+const unavailable = computed(() => {
+  if (publicState.value === 'not-found') {
+    return {
+      icon: 'file',
+      title: '活动不存在或尚未发布',
+      text: '请确认分享链接是否正确，或联系活动发布者重新发布。',
+    }
+  }
+  if (publicState.value === 'error') {
+    return {
+      icon: 'info',
+      title: '活动页面加载失败',
+      text: '服务暂时没有返回有效内容，请稍后刷新重试。',
+    }
+  }
+  return {
+    icon: 'layers',
+    title: '正在加载活动',
+    text: '正在获取最新发布内容，请稍候。',
+  }
+})
 
 const answers = reactive<Record<string, string | string[]>>({})
 const errors = reactive<Record<string, boolean>>({})
@@ -59,13 +87,24 @@ function resetPage(): void {
 watch(document, resetPage, { immediate: true })
 
 onMounted(async () => {
-  if (!slug.value) return
+  if (!slug.value) {
+    publicState.value = 'not-found'
+    return
+  }
   try {
     const result = await getPublicActivity(slug.value)
     remoteDocument.value = result.document
     remoteActivity.value = result.activity
-  } catch {
-    // 后端不可用时保留本地演示
+    publicState.value = 'ready'
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 0) {
+      // 只有真正断网时才使用本地文档，避免把 404/未发布误显示成本地演示内容。
+      publicState.value = 'offline'
+    } else if (error instanceof ApiError && (error.status === 404 || error.status === 410)) {
+      publicState.value = 'not-found'
+    } else {
+      publicState.value = 'error'
+    }
   }
 })
 
@@ -143,7 +182,7 @@ async function handleAction(action: any): Promise<void> {
 async function shareActivity(): Promise<void> {
   try {
     if (navigator.share) {
-      await navigator.share({ title: document.value.title, url: shareUrl.value })
+      await navigator.share({ title: document.value?.title ?? '校园活动', url: shareUrl.value })
       return
     }
     await navigator.clipboard.writeText(shareUrl.value)
@@ -179,7 +218,7 @@ function goBack(): void {
           v-for="block in visibleBlocks"
           :key="block.id"
           :block="block"
-          :theme="document.theme"
+          :theme="document?.theme ?? editorStore.doc.theme"
           :pages="pages"
           :share-url="shareUrl"
           mode="preview"
@@ -188,9 +227,9 @@ function goBack(): void {
       </div>
 
       <div v-else class="public-document-empty">
-        <Icon name="file" :size="28" />
-        <strong>活动页面还没有内容</strong>
-        <p>请回到编辑器添加组件并重新发布。</p>
+        <Icon :name="unavailable.icon" :size="28" />
+        <strong>{{ unavailable.title }}</strong>
+        <p>{{ unavailable.text }}</p>
         <RouterLink to="/projects">返回项目工作台</RouterLink>
       </div>
     </div>

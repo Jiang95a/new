@@ -10,9 +10,8 @@ const cases = [
   { path: '/projects/new', selector: '.studio-create', text: '把一个想法变成活动页面' },
   { path: '/templates', selector: '.templates-page', text: '模板灵感' },
   { path: '/editor/demo', selector: '.studio-editor', text: '质量检查' },
-  // 注意：测试里 localStorage 是空的，/p/:slug 查不到项目时会回退到编辑器当前文档（demo），
-  // 所以这里断言的是 demo 文档里的 Banner 文案，不是种子项目的光影摄影社。
-  // 这个回退本身是已知缺陷（换台手机打开分享链接会看到空的/别人的内容），等后端上线要改掉。
+  // 测试环境无法连接 8080，按“断网才本地兜底”的规则回退到编辑器演示文档。
+  // 后端返回 404/未发布时不会再走这个回退。
   { path: '/p/photo-club-2026', selector: '.studio-activity', text: '加入我们，一起搞点事情' },
 ]
 

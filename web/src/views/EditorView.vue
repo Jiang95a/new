@@ -44,6 +44,7 @@ const draftRevision = ref(0)
 const saveConflict = ref(false)
 let syncReady = false
 let remoteSaveTimer: number | undefined
+let remoteSaveQueue: Promise<boolean> = Promise.resolve(true)
 
 const requestedProjectId = computed(() => String(route.params.projectId ?? ''))
 
@@ -91,20 +92,45 @@ watch(
   { deep: true }
 )
 
-async function saveDraftRemote(value: Doc): Promise<void> {
-  if (!activeProjectId.value) return
-  try {
-    const saved = await putDraft(activeProjectId.value, draftRevision.value, value)
-    draftRevision.value = saved.revision
-    saveConflict.value = false
-  } catch (error) {
-    if (error instanceof ApiError && error.status === 409) {
-      saveConflict.value = true
-      toast.pushToast('草稿已在其他页面更新，请刷新后再保存', 'warn')
-      return
-    }
-    // 后端未启动时保留 localStorage 演示能力
+function saveDraftRemote(value: Doc): Promise<boolean> {
+  const projectId = activeProjectId.value
+  if (!projectId) return Promise.resolve(true)
+  const snapshot = JSON.parse(JSON.stringify(value)) as Doc
+
+  // 串行保存，避免防抖保存和发布前保存同时携带旧 revision 互相覆盖。
+  remoteSaveQueue = remoteSaveQueue
+    .catch(() => false)
+    .then(async () => {
+      try {
+        const saved = await putDraft(projectId, draftRevision.value, snapshot)
+        if (projectId === activeProjectId.value) {
+          draftRevision.value = saved.revision
+          saveConflict.value = false
+        }
+        return true
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 409) {
+          saveConflict.value = true
+          toast.pushToast('草稿已在其他页面更新，请刷新后再保存', 'warn')
+        }
+        // 后端未启动时保留 localStorage 演示能力
+        return false
+      }
+    })
+  return remoteSaveQueue
+}
+
+async function openPublish(): Promise<void> {
+  if (remoteSaveTimer !== undefined) {
+    window.clearTimeout(remoteSaveTimer)
+    remoteSaveTimer = undefined
   }
+  await saveDraftRemote(store.doc)
+  if (saveConflict.value) {
+    toast.pushToast('草稿存在版本冲突，刷新同步后才能发布', 'warn')
+    return
+  }
+  publishOpen.value = true
 }
 
 const saveLabel = computed(() => {
@@ -211,7 +237,7 @@ onBeforeUnmount(() => {
         <button class="editor-preview-link" type="button" @click="previewOpen = true">
           <Icon name="eye" :size="15" />预览
         </button>
-        <button class="app-button app-button--primary editor-publish-button" type="button" @click="publishOpen = true">
+        <button class="app-button app-button--primary editor-publish-button" type="button" @click="openPublish">
           发布
         </button>
       </div>

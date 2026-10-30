@@ -38,7 +38,9 @@ const navItems = [
 
 const isActive = computed(() => (href: string) => {
   const path = href.split('#')[0] ?? href
-  if (href === '/projects') return route.path === '/projects'
+  if (href === '/projects') {
+    return route.path === '/projects' || /^\/projects\/[^/]+\/(analytics|submissions|exports)$/.test(route.path)
+  }
   if (href.includes('#')) return route.hash === `#${href.split('#')[1] ?? ''}`
   return route.path.startsWith(path)
 })
@@ -47,6 +49,7 @@ const pageTitle = computed(() => {
   if (route.path === '/projects') return '项目工作台'
   if (route.path === '/projects/new') return '新建活动'
   if (route.path === '/templates') return '模板灵感'
+  if (/^\/projects\/[^/]+\/(analytics|submissions|exports)$/.test(route.path)) return '项目数据'
   if (route.path.startsWith('/editor')) return '页面编辑器'
   if (route.path.startsWith('/p/')) return '活动预览'
   return '工作台'

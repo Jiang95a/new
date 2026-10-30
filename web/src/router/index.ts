@@ -5,6 +5,7 @@ import TemplatesView from '@/views/TemplatesView.vue'
 import EditorView from '@/views/EditorView.vue'
 import PublicActivityView from '@/views/PublicActivityView.vue'
 import LoginView from '@/views/LoginView.vue'
+import ProjectDataView from '@/views/ProjectDataView.vue'
 import { getAccessToken } from '@/services/http'
 
 export const appRoutes: RouteRecordRaw[] = [
@@ -32,6 +33,21 @@ export const appRoutes: RouteRecordRaw[] = [
     path: '/templates',
     name: 'templates',
     component: TemplatesView,
+  },
+  {
+    path: '/projects/:projectId/analytics',
+    name: 'project-analytics',
+    component: ProjectDataView,
+  },
+  {
+    path: '/projects/:projectId/submissions',
+    name: 'project-submissions',
+    component: ProjectDataView,
+  },
+  {
+    path: '/projects/:projectId/exports',
+    name: 'project-exports',
+    component: ProjectDataView,
   },
   {
     path: '/editor/:projectId',

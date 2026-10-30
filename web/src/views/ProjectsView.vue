@@ -120,6 +120,7 @@ function toggleSort(): void {
 }
 
 function clearSearch(): void {
+  statusFilter.value = 'all'
   void router.replace({ path: '/projects' })
 }
 </script>
@@ -183,8 +184,14 @@ function clearSearch(): void {
           <button type="button" @click="clearSearch">清除搜索</button>
         </div>
 
-        <div class="project-grid">
-          <article v-for="project in filteredProjects" :key="project.title" class="project-card">
+        <div v-if="projectStore.remoteLoading && projectStore.projects.length === 0" class="project-empty-state">
+          <span><Icon name="layers" :size="22" /></span>
+          <strong>正在加载活动项目</strong>
+          <p>正在同步工作台数据，请稍候。</p>
+        </div>
+
+        <div v-else class="project-grid">
+          <article v-for="project in filteredProjects" :key="project.id" class="project-card">
             <div class="project-cover" :class="`project-cover--${project.coverTone}`">
               <div class="project-cover-pattern" />
               <span class="project-cover-code">{{ project.coverCode }}</span>
@@ -210,6 +217,9 @@ function clearSearch(): void {
               <div class="project-card-footer">
                 <span>{{ project.updatedAt }}</span>
                 <div class="project-card-actions">
+                  <RouterLink :to="`/projects/${project.id}/analytics`">
+                    <Icon name="chart" :size="14" />数据
+                  </RouterLink>
                   <RouterLink :to="`/p/${project.slug}`" target="_blank"><Icon name="eye" :size="14" />预览</RouterLink>
                   <RouterLink class="project-edit-link" :to="`/editor/${project.id}`">
                     编辑<Icon name="arrow-right" :size="14" />
@@ -220,13 +230,27 @@ function clearSearch(): void {
           </article>
 
           <div v-if="filteredProjects.length === 0" class="project-empty-state">
-            <span><Icon name="search" :size="22" /></span>
-            <strong>没有找到匹配的活动</strong>
-            <p>尝试换一个关键词，或者清除当前筛选条件。</p>
-            <button class="app-button app-button--secondary" type="button" @click="clearSearch">清除搜索</button>
+            <span><Icon :name="projectStore.projects.length === 0 ? 'file' : 'search'" :size="22" /></span>
+            <strong>{{ projectStore.projects.length === 0 ? '还没有校园活动' : '没有找到匹配的活动' }}</strong>
+            <p>
+              {{
+                projectStore.projects.length === 0
+                  ? '从模板、AI 或海报开始创建第一个可分享的校园活动页面。'
+                  : '尝试换一个关键词，或者清除当前搜索与筛选条件。'
+              }}
+            </p>
+            <RouterLink
+              v-if="projectStore.projects.length === 0"
+              class="app-button app-button--primary"
+              to="/projects/new"
+            >
+              <Icon name="plus" :size="14" />
+              新建第一个活动
+            </RouterLink>
+            <button v-else class="app-button app-button--secondary" type="button" @click="clearSearch">清除搜索</button>
           </div>
 
-          <RouterLink class="project-create-card" to="/projects/new">
+          <RouterLink v-if="projectStore.projects.length > 0" class="project-create-card" to="/projects/new">
             <span class="project-create-icon"><Icon name="plus" :size="21" /></span>
             <strong>创建新的校园活动</strong>
             <p>从模板开始，或者让 AI 根据海报生成。</p>

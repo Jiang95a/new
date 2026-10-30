@@ -49,7 +49,9 @@ describe('模板灵感与 AI 生成入口', () => {
 
     const buttons = wrapper.findAll('.workspace-nav-item--button')
     expect(buttons.length).toBeGreaterThan(0)
-    await buttons[0].trigger('click')
+    const aiButton = buttons[0]
+    expect(aiButton).toBeDefined()
+    await aiButton!.trigger('click')
     await flushPromises()
 
     expect(document.body.querySelector('.ai-drawer')).not.toBeNull()
