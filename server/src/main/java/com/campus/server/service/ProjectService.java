@@ -116,7 +116,11 @@ public class ProjectService {
         if (request.templateId() != null && !request.templateId().isBlank()) {
             coverSource = templateMapper.findById(request.templateId());
         }
+        // activityType 优先用模板 category（如 recruitment → 社团招新），
+        // 因为前端 templates.ts 的 CATEGORY_META 就是按 category 映射的场景名；
+        // 用模板名会得到「社团招新季」这种和列表筛选对不上的值。
         project.setActivityType(firstNonBlank(request.activityType(),
+                sceneOfCategory(coverSource == null ? null : coverSource.getCategory()),
                 coverSource == null ? null : coverSource.getName(),
                 "校园活动"));
         project.setCoverTone(firstNonBlank(request.coverTone(),
@@ -738,6 +742,27 @@ public class ProjectService {
             case "vote" -> "vote";
             case "checkin" -> "checkin";
             default -> "photo";
+        };
+    }
+
+    /**
+     * 模板 category → 中文场景名，与前端 {@code web/src/services/templates.ts}
+     * 里的 {@code CATEGORY_META[*].scene} 逐字保持一致。
+     *
+     * <p>为什么要对齐：前端项目列表按 {@code activityType} 显示和筛选，
+     * 如果后端给的是模板名（「社团招新季」）而前端场景名是「社团招新」，
+     * 用户在同一类活动之间来回切就会筛不出东西。
+     */
+    private static String sceneOfCategory(String category) {
+        if (category == null || category.isBlank()) {
+            return null;
+        }
+        return switch (category) {
+            case "recruitment" -> "社团招新";
+            case "registration" -> "活动报名";
+            case "vote" -> "投票评选";
+            case "checkin" -> "每日打卡";
+            default -> null;
         };
     }
 

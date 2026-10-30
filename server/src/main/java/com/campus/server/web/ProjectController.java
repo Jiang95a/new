@@ -39,7 +39,9 @@ public class ProjectController {
             @RequestParam(required = false) String q,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String activityType,
-            @RequestParam(required = false, defaultValue = "updated") String sort,
+            // 白名单：title / created_at / updated_at（mapper 里实现）。
+            // 默认按更新时间倒序，未识别的值也落默认，不报错。
+            @RequestParam(required = false, defaultValue = "updated_at") String sort,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int pageSize) {
         Dtos.PagedResultHolder<Dtos.ProjectDto> result =

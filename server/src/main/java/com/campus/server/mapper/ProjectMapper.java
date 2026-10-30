@@ -40,9 +40,14 @@ public interface ProjectMapper {
 
     String SEARCH_SQL_HEAD = "<script>SELECT " + COLUMNS + " FROM projects" + SEARCH_WHERE + " ORDER BY ";
 
+    // sort 的白名单都在这里，别把用户传的字符串直接拼进 SQL。
+    // 前端 stores/projects.ts 传的是 'updated_at' / 'created_at' / 'title'；
+    // 旧版只认 'title'，其余全落 otherwise，导致「按创建时间」排不出效果。
     String SEARCH_SQL_TAIL =
             "<choose>"
           + "<when test=\"sort == 'title'\">title ASC</when>"
+          + "<when test=\"sort == 'created_at' or sort == 'created'\">created_at DESC</when>"
+          + "<when test=\"sort == 'updated_at' or sort == 'updated'\">updated_at DESC</when>"
           + "<otherwise>updated_at DESC</otherwise>"
           + "</choose>, id ASC LIMIT #{limit} OFFSET #{offset}</script>";
 
