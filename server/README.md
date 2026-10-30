@@ -1,13 +1,39 @@
-# 后端服务（待搭建）
+# 后端服务
 
-占位目录。**约定端口：8080。**
+Spring Boot 3.4 + MyBatis + MySQL 8 + JWT，默认端口 **8080**，接口前缀
+`/api/v1`。
 
-## 落地时请把这个文件补成四段
+## Windows 快速启动
 
-1. **技术栈与版本**（框架、ORM、Python/Node 版本）
-2. **启动命令**（从零到能访问 `/docs`）
-3. **环境变量**（从 `docs/.env.example` 复制，密钥只放本地 `.env`）
-4. **依赖的外部服务**
+仓库提供了 `dev.ps1`，会自动寻找 JDK 21 和 Maven，并把依赖缓存放到
+`server/.maven-repo`：
+
+```powershell
+cd server
+.\dev.ps1                 # 启动后端
+.\dev.ps1 compile         # 只编译
+.\dev.ps1 spring-boot:run # 显式启动
+```
+
+如果没有找到 JDK 21 或 Maven，请安装后重新打开终端；也可以分别设置
+`JAVA_HOME` 和 `MAVEN_HOME`。
+
+## 数据库
+
+首次使用按顺序执行：
+
+```powershell
+mysql -u root -p --default-character-set=utf8mb4 -e "source ../docs/sql/00_create_database.sql"
+mysql -u campus_app -p --default-character-set=utf8mb4 campus_diy -e "source ../docs/sql/001_init.sql"
+mysql -u campus_app -p --default-character-set=utf8mb4 campus_diy -e "source ../docs/sql/002_seed.sql"
+mysql -u campus_app -p --default-character-set=utf8mb4 campus_diy -e "source ../docs/sql/003_cover_fields.sql"
+mysql -u campus_app -p --default-character-set=utf8mb4 campus_diy -e "source ../docs/sql/004_more_templates.sql"
+```
+
+启动后可访问：
+
+- 健康检查：`GET http://127.0.0.1:8080/api/v1/health`
+- 完整验收：`powershell -ExecutionPolicy Bypass -File .\e2e-test.ps1`
 
 ## 与其他两端的边界
 

@@ -2,6 +2,7 @@
 target/
 build/
 !.mvn/wrapper/maven-wrapper.jar
+.maven-repo/
 
 ### IntelliJ IDEA ###
 .idea/
