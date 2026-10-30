@@ -8,10 +8,12 @@ export interface PublishResult {
 }
 
 export async function publishProject(id: string, slug?: string): Promise<PublishResult> {
+  // slug 为空时整个字段都不发：JSON.stringify 会把 undefined 的键直接删掉，
+  // 后端才能走「按标题自动生成」的分支。
   return readData<PublishResult>(
     await apiRequest(`/projects/${id}/publish`, {
       method: 'POST',
-      body: JSON.stringify({ slug }),
+      body: JSON.stringify(slug ? { slug } : {}),
     })
   )
 }

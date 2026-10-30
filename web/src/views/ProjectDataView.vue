@@ -49,7 +49,7 @@ const tabs = computed(() => [
   {
     id: 'analytics' as const,
     label: '分析统计',
-    hint: summary.value ? `${summary.value.pageViews} 次浏览` : '浏览与转化',
+    hint: summary.value ? `${num(summary.value.pageViews)} 次浏览` : '浏览与转化',
     icon: 'chart',
     href: `${projectPath.value}/analytics`,
   },
@@ -70,19 +70,34 @@ const tabs = computed(() => [
 ])
 const exportStorageKey = computed(() => `diy-campus:exports:${projectId.value}`)
 
-const trend = computed(() => summary.value?.byDay.slice(-7) ?? [])
+// 后端返回的数字字段一律走一遍 num()。老版本后端在「还没发布」的项目上会给出
+// null（SUM 空集合 / 字段缺失），直接插值会渲染成「undefined 次浏览」。
+const num = (value: unknown): number => {
+  const n = Number(value)
+  return Number.isFinite(n) ? n : 0
+}
+
+const trend = computed(() =>
+  (Array.isArray(summary.value?.byDay) ? summary.value.byDay : []).slice(-7).map((item) => ({
+    ...item,
+    date: String(item.date ?? ''),
+    views: num(item.views),
+    submissions: num(item.submissions),
+    count: num(item.count),
+  }))
+)
 const trendMax = computed(() =>
-  Math.max(1, ...trend.value.flatMap((item) => [Number(item.views) || 0, Number(item.submissions) || 0]))
+  Math.max(1, ...trend.value.flatMap((item) => [item.views, item.submissions]))
 )
 const eventDistribution = computed(() =>
   Object.entries(summary.value?.byEventType ?? {})
-    .map(([type, count]) => ({ type, count: Number(count) || 0, label: eventLabel(type) }))
+    .map(([type, count]) => ({ type, count: num(count), label: eventLabel(type) }))
     .sort((a, b) => b.count - a.count)
     .slice(0, 6)
 )
 const eventMax = computed(() => Math.max(1, ...eventDistribution.value.map((item) => item.count)))
 const conversionPercent = computed(() =>
-  summary.value ? Math.round((Number(summary.value.conversionRate) || 0) * 1000) / 10 : 0
+  summary.value ? Math.round(num(summary.value.conversionRate) * 1000) / 10 : 0
 )
 const submissionTotalPages = computed(() => Math.max(1, Math.ceil(submissionTotal.value / submissionPageSize)))
 const fieldLabels = computed(() => {
@@ -452,22 +467,22 @@ watch(activeTab, async () => {
               <article class="metric-card">
                 <span class="metric-icon metric-icon--blue"><Icon name="eye" :size="18" /></span>
                 <div>
-                  <small>页面浏览</small><strong>{{ summary?.pageViews ?? 0 }}</strong
+                  <small>页面浏览</small><strong>{{ num(summary?.pageViews) }}</strong
                   ><em>累计公开页访问</em>
                 </div>
               </article>
               <article class="metric-card">
                 <span class="metric-icon metric-icon--violet"><Icon name="cursor" :size="18" /></span>
                 <div>
-                  <small>开始填写</small><strong>{{ summary?.formStarted ?? 0 }}</strong
+                  <small>开始填写</small><strong>{{ num(summary?.formStarted) }}</strong
                   ><em>触发表单交互</em>
                 </div>
               </article>
               <article class="metric-card">
                 <span class="metric-icon metric-icon--green"><Icon name="check-circle" :size="18" /></span>
                 <div>
-                  <small>有效提交</small><strong>{{ summary?.validSubmissions ?? 0 }}</strong>
-                  <em>共 {{ summary?.submissions ?? 0 }} 条提交</em>
+                  <small>有效提交</small><strong>{{ num(summary?.validSubmissions) }}</strong>
+                  <em>共 {{ num(summary?.submissions) }} 条提交</em>
                 </div>
               </article>
               <article class="metric-card">
@@ -493,8 +508,8 @@ watch(activeTab, async () => {
 
                 <div v-if="trend.length" class="trend-chart">
                   <div class="trend-chart-value">
-                    <strong>{{ summary?.pageViews ?? 0 }}</strong>
-                    <span>累计浏览 · {{ summary?.publishedPages ?? 0 }} 个页面被访问</span>
+                    <strong>{{ num(summary?.pageViews) }}</strong>
+                    <span>累计浏览 · {{ num(summary?.publishedPages) }} 个页面被访问</span>
                   </div>
                   <svg viewBox="0 0 100 48" preserveAspectRatio="none" role="img" aria-label="浏览与提交趋势">
                     <line v-for="line in [8, 20, 32, 44]" :key="line" x1="0" :y1="line" x2="100" :y2="line" />

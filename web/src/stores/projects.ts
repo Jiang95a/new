@@ -10,6 +10,7 @@ import {
   listProjects as listProjectsApi,
   type ProjectApiRecord,
 } from '@/services/projects'
+import { putDraft } from '@/services/draft'
 
 export type ProjectStatus = 'draft' | 'published' | 'unpublished' | 'archived'
 
@@ -323,6 +324,38 @@ export const useProjectStore = defineStore('projects', () => {
     project.document = cloneDocument(document)
   }
 
+  /**
+   * 把文档保存到后端草稿。
+   *
+   * 老版本这里只有上面的 {@link saveDocument}（纯内存赋值），名字叫「保存」
+   * 但不发任何请求，谁在它后面依赖「已经存上了」就会丢数据。
+   * 现在编辑器之外的入口都走这个函数：写内存 + PUT /projects/{id}/draft。
+   *
+   * revision 冲突（409）不当作错误抛出，而是返回 conflict=true，
+   * 让调用方决定是提示用户刷新还是覆盖，别把用户的编辑直接丢掉。
+   */
+  async function saveRemoteDraft(
+    projectId: string,
+    document: Doc
+  ): Promise<{ ok: boolean; revision: number; conflict: boolean }> {
+    const project = getById(projectId)
+    const snapshot = cloneDocument(document)
+    // 先写内存，保证界面上立刻看到，不依赖网络
+    saveDocument(projectId, snapshot)
+    try {
+      const saved = await putDraft(projectId, project?.draftRevision ?? 0, snapshot)
+      if (project) project.draftRevision = saved.revision
+      return { ok: true, revision: saved.revision, conflict: false }
+    } catch (error) {
+      const status = (error as { status?: number })?.status
+      return {
+        ok: false,
+        revision: project?.draftRevision ?? 0,
+        conflict: status === 409,
+      }
+    }
+  }
+
   function updateProject(projectId: string, patch: Partial<Pick<ProjectRecord, 'type' | 'status'>>): void {
     const project = getById(projectId)
     if (!project) return
@@ -381,6 +414,7 @@ export const useProjectStore = defineStore('projects', () => {
     loadProjects,
     refreshProject,
     saveDocument,
+    saveRemoteDraft,
     updateProject,
     publishProject,
     unpublishProject,

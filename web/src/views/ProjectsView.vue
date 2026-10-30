@@ -9,7 +9,7 @@ const projectStore = useProjectStore()
 const route = useRoute()
 const router = useRouter()
 const statusFilter = ref<'all' | 'published' | 'draft'>('all')
-const sortMode = ref<'updated' | 'title'>('updated')
+const sortMode = ref<'updated' | 'created' | 'title'>('updated')
 
 onMounted(() => {
   void projectStore.loadProjects()
@@ -98,6 +98,11 @@ const filteredProjects = computed(() => {
   if (sortMode.value === 'title') {
     return [...items].sort((a, b) => a.title.localeCompare(b.title, 'zh-CN'))
   }
+  if (sortMode.value === 'created') {
+    // 后端 GET /projects?sort=created_at 已经支持按创建时间倒序；
+    // 这里做本地二次排序，保证离线/演示模式下行为一致。
+    return [...items].sort((a, b) => (b.document.createdAt ?? 0) - (a.document.createdAt ?? 0))
+  }
   return items
 })
 
@@ -116,7 +121,9 @@ function formatProjectDate(timestamp: number): string {
 }
 
 function toggleSort(): void {
-  sortMode.value = sortMode.value === 'updated' ? 'title' : 'updated'
+  // 三态循环：最近更新 → 最近创建 → 名称排序 → 最近更新
+  sortMode.value =
+    sortMode.value === 'updated' ? 'created' : sortMode.value === 'created' ? 'title' : 'updated'
 }
 
 function clearSearch(): void {
@@ -170,7 +177,7 @@ function clearSearch(): void {
           </div>
           <div class="project-toolbar-actions">
             <button class="project-filter" type="button" @click="toggleSort">
-              {{ sortMode === 'updated' ? '最近更新' : '名称排序' }}
+              {{ sortMode === 'updated' ? '最近更新' : sortMode === 'created' ? '最近创建' : '名称排序' }}
               <Icon name="chevron" :size="13" />
             </button>
             <button class="app-icon-button" type="button" aria-label="更多筛选">

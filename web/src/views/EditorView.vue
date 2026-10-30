@@ -77,6 +77,9 @@ watch(
   doc,
   (value) => {
     if (!syncReady || !activeProjectId.value) return
+    // 先写内存：界面立刻响应，不必等防抖的远端保存。
+    // 真正落库由下面的 saveDraftRemote()（900ms 防抖 + 串行队列）负责，
+    // 它自己也会回写 draftRevision，所以这里不再另起一次请求。
     projectStore.saveDocument(activeProjectId.value, value)
     if (remoteSaveTimer !== undefined) window.clearTimeout(remoteSaveTimer)
     remoteSaveTimer = window.setTimeout(() => {

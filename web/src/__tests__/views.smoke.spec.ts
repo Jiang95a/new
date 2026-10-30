@@ -6,7 +6,7 @@ import App from '@/App.vue'
 import { appRoutes } from '@/router'
 
 const cases = [
-  { path: '/', selector: '.landing-page', text: '做出一场' },
+  { path: '/', selector: '.landing-page', text: '更快被看见' },
   { path: '/projects', selector: '.studio-dashboard', text: '项目工作台' },
   { path: '/projects/new', selector: '.studio-create', text: '把一个想法变成活动页面' },
   { path: '/templates', selector: '.templates-page', text: '模板灵感' },

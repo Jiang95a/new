@@ -320,12 +320,19 @@ CREATE TABLE IF NOT EXISTS feedback_reports (
 
 -- ============================================================================
 -- 跑完自查：
---   1) 应该看到 11 张表
+--   1) 应该看到 12 张表
 --        SHOW TABLES;
+--        users / auth_sessions / templates / projects / page_versions /
+--        form_submissions / activity_events / project_assets / ai_jobs /
+--        ai_proposals / export_jobs / feedback_reports
 --   2) 每张表的 Collation 必须带 utf8mb4
 --        SELECT TABLE_NAME, TABLE_COLLATION FROM information_schema.TABLES
 --         WHERE TABLE_SCHEMA = DATABASE();
 --   3) 约束是否生效（MySQL 8.0.16+ 才有值）
 --        SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS
 --         WHERE TABLE_SCHEMA = DATABASE() AND CONSTRAINT_TYPE = 'CHECK';
+--
+-- 注意：本文件是「最后一次全量同步」的结果。老库如果建得早，缺的表不会
+-- 因为重跑 001 自动补上（CREATE TABLE IF NOT EXISTS 会整段跳过），
+-- 必须按 README 里的顺序补跑增量脚本。
 -- ============================================================================

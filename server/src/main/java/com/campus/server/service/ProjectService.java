@@ -627,9 +627,19 @@ public class ProjectService {
     }
 
     private String resolveSlug(ProjectEntity project, String requested) {
-        String candidate = (requested == null || requested.isBlank())
-                ? (project.getPublicSlug() != null ? project.getPublicSlug() : Ids.slugify(project.getTitle()))
-                : requested.trim().toLowerCase(Locale.ROOT);
+        // 纯空白 / 空串一律等同于「没给」：前端以前会把用户没填过的空 slug 原样发上来，
+        // 这里如果按「显式传了」处理，业务会卡在 slug 校验上。
+        String explicit = (requested == null || requested.isBlank()) ? null : requested.trim().toLowerCase(Locale.ROOT);
+        String candidate;
+        if (explicit != null) {
+            candidate = explicit;
+        } else if (project.getPublicSlug() != null && !project.getPublicSlug().isBlank()) {
+            candidate = project.getPublicSlug();
+        } else {
+            // 中文标题自动生成时是 activity-xxxxxx 这种带随机后缀的形式，
+            // 前端并不知道，所以生成的 slug 必须写回项目，否则下次发布又换一个新链接。
+            candidate = Ids.slugify(project.getTitle());
+        }
         if (!candidate.matches("^[a-z0-9]+(-[a-z0-9]+)*$")) {
             throw BizException.invalid("slug 只能是小写字母、数字和连字符");
         }

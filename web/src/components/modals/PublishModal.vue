@@ -30,10 +30,26 @@ const posterBusy = ref(false)
 const published = computed(() => Boolean(doc.value.published))
 const url = computed(() => store.shareUrl)
 
+// 后端 POST /projects/{id}/publish 的 slug 是选填：不传就按标题自动生成，
+// 并且会把生成结果写回项目，下次发布沿用同一个链接。
+// 前端以前把 doc.slug 原样塞进去，空串会被当成「显式传了空 slug」，
+// 生成出 http://host/ 这种打不开的地址。所以这里空值就不传，交给后端决定。
+const normalizedSlug = computed(() => (doc.value.slug ?? '').trim().toLowerCase())
+const slugValid = computed(
+  () => normalizedSlug.value === '' || /^[a-z0-9]+(-[a-z0-9]+)*$/.test(normalizedSlug.value)
+)
+
 async function publish(): Promise<void> {
   if (props.projectId) {
+    if (!slugValid.value) {
+      toast.pushToast('访问路径只能用小写字母、数字和连字符，例如 club-recruit', 'warn')
+      return
+    }
     try {
-      const result = await publishProjectApi(props.projectId, doc.value.slug)
+      const result = await publishProjectApi(
+        props.projectId,
+        normalizedSlug.value === '' ? undefined : normalizedSlug.value
+      )
       doc.value.slug = result.publicSlug
       doc.value.published = {
         url: result.publicUrl,

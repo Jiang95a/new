@@ -1,7 +1,7 @@
 # MySQL 环境：五步跑起来
 
 > 给后端同学。照这个顺序做，**十分钟**能看到表和数据。
-> 目录：`docs/sql/`　｜　全量结构：`001_init.sql`（11 张表）
+> 目录：`docs/sql/`　｜　全量结构：`001_init.sql`（12 张表）
 
 ---
 
@@ -56,6 +56,22 @@ mysql -u campus_app -p campus_diy < docs/sql/001_init.sql
 
 脚本用 `IF NOT EXISTS` + 内联索引，**可以重复执行**，不会报错。
 
+### 老库还差最后一步：补反馈表
+
+`001_init.sql` 是后来才把 `feedback_reports` 并进去的。**如果你的库是更早建的**，
+`CREATE TABLE IF NOT EXISTS` 不会帮你补上，`POST /feedback` 会直接 500
+（`Table 'campus_diy.feedback_reports' doesn't exist`）。补跑一次就行：
+
+```powershell
+mysql -u campus_app -p campus_diy < docs/sql/006_feedback.sql
+```
+
+验证：
+
+```sql
+SHOW TABLES;   -- 应该是 12 张，最后一张是 feedback_reports
+```
+
 ---
 
 ## 4. 灌演示数据（可选，但强烈建议）
@@ -86,7 +102,7 @@ DB_PASSWORD=你的密码
 验证三件事：
 
 ```sql
--- ① 11 张表都在
+-- ① 12 张表都在（feedback_reports 也算在内）
 SHOW TABLES;
 
 -- ② 字符集必须是 utf8mb4（出现 utf8 或 latin1 就要重建）
